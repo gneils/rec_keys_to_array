@@ -17,7 +17,7 @@ END PROGRAM
 retrieval crwarn
 string  *  32  array db_rec_keys   ( 100, 8 ) |row, key1, key2, key3, key4, key5, key6
 string  *  32  array rec_key_list  ( 100, 8 ) |value, key1, key2, key3, key4, key5, key6
-integer *   2  array row_pointer  ( 8 )   | next row to add to array for each key
+integer *   2  array rec_key_list_pointer  ( 8 )   | next row to add to array for each key
 string  *  32  array match_value   ( 8 )  | User matching criteria.  Updated when 1st match is encountered
 integer *   1  key_refresh_start     | First key to refresh
 integer *   1  KEY#C                   | how many keys are there
@@ -27,7 +27,7 @@ string  * 150  txt                   | general output for debuggin
 integer *   2  db_row                | database row
 integer *   1  previous_keys_match   | if all previous keys match check current key value to see if it is unique
 integer *   1  first_match           | First row that matched user defined criteria was encountered.  If so set all match values to current row values
-string  *  32  current_value 
+string  *  32  current_key_value 
 integer *   1  testing
 integer *   1  start_key             | which key was clicked
 REAL    *   8  CASE_#V
@@ -42,9 +42,9 @@ string  * 123  DISPLAY_TEXT          | text to output to window
 testing = 0  | When we have grabbed a case with the record type of interest.
 window clear
 first_match = 0
-set row_pointer * (1)  | starting position for list
+set rec_key_list_pointer * (1)  | starting position for list
 start_key = 1          | because SIR does complex things to CASE and CASESLESS DB we pass in a start value and change as needed.
-key_refresh_start = start_key + dbtype(0) | note CASEID is first key
+execute subprocedure SET_KEY_REFRESH_START
 rt$ = 'AER'
 REC_# = recnum(rt$)
 db_row = 0 
@@ -76,6 +76,8 @@ c
 
 END CASES
 c get all of the 
+
+. if (testing eq 0 ) write 'no case was found to have that record.'
 
 execute subprocedure ["get_rec_" + format(REC_#)]
 write 'total rows in db record type: ' db_row
@@ -122,13 +124,13 @@ WRITE '--------   Create Match Key Arrays --------'
 .   if ( first_match eq 0 ) execute subprocedure CHECK_ALL_MATCH_CRITERIA
 
 .   for each_key = 1 + dbtype(0), KEY#C
-.     current_value = db_rec_keys (each_db_row, each_key)
+.     current_key_value = db_rec_keys (each_db_row, each_key)
 .     execute subprocedure previous_keys_match
 .     ifthen  ( previous_keys_match = 0 ) 
 write 'each_key: ' each_key ' previous key values did not match.' 
 .       exit for | all key values before this value must match
 .     endif
-.     execute subprocedure is_value_unique    | if unique add to list
+.     execute subprocedure is_key_value_unique    | if unique add to list
 .   end for
 . end for
 end subprocedure
@@ -138,8 +140,8 @@ subprocedure refresh_keys
 WRITE // '-----------   show values to update -----------'
 WRITE 'These keys: ' [key_refresh_start ] ' - ' KEY#C
 . for each_key = key_refresh_start , KEY#C 
-write 'key ' each_key '.  # of values to update: ' [row_pointer(each_key) - 1 ]
-.   for each_row = 1, row_pointer(each_key) - 1
+write 'key ' each_key '.  # of values to update: ' [rec_key_list_pointer(each_key) - 1 ]
+.   for each_row = 1, rec_key_list_pointer(each_key) - 1
 .       key_name = keyname( REC_#, each_key ) 
 .       key_value = rec_key_list( each_row, each_key )
 .       key_vtype = vtype( REC_#, key_name )
@@ -148,7 +150,7 @@ write 'key ' each_key '.  # of values to update: ' [row_pointer(each_key) - 1 ]
 .       else
 .         key_value_label = trim( fst( vallabsc ( REC_#, key_name, numbr( key_value ) ) , "" ) )
 .       endif
-.       DISPLAY_TEXT = key_value + key_value_label
+.       DISPLAY_TEXT = key_value + " " key_value_label
 write DISPLAY_TEXT
 c .       write 5t '  row: ' each_row   
                  ' value: ' key_value
@@ -177,17 +179,17 @@ write 5t 'failed match: ' db_rec_keys (each_db_row, check_key ) ' != ' match_val
 . end for
 end subprocedure
 
-subprocedure is_value_unique
-. for each_element = 1, row_pointer(each_key)
-| write 5t 'value check: ' rec_key_list ( each_element, each_key ) ' ?= 'current_value 
-.   ifthen ( rec_key_list ( each_element, each_key ) eq current_value ) 
-| write 'Is value unique: NO! key: ' each_key ' found value: ' current_value
+subprocedure is_key_value_unique
+. for each_element = 1, rec_key_list_pointer(each_key)
+| write 5t 'value check: ' rec_key_list ( each_element, each_key ) ' ?= 'current_key_value 
+.   ifthen ( rec_key_list ( each_element, each_key ) eq current_key_value ) 
+| write 'Is value unique: NO! key: ' each_key ' found value: ' current_key_value
 .     exit subprocedure | value is already in list move on.
 .   endif
 . end for
-write 'adding value to key: ' each_key ' = '  current_value 
-. rec_key_list (row_pointer(each_key), each_key ) = current_value
-. row_pointer(each_key) = row_pointer(each_key) + 1
+write 'adding value to key: ' each_key ' = '  current_key_value 
+. rec_key_list (rec_key_list_pointer(each_key), each_key ) = current_key_value
+. rec_key_list_pointer(each_key) = rec_key_list_pointer(each_key) + 1
 end subprocedure 
 
 subprocedure CHECK_ALL_MATCH_CRITERIA
