@@ -21,7 +21,7 @@ integer *   2  array row_pointer  ( 8 )   | next row to add to array for each ke
 string  *  32  array match_value   ( 8 )  | User matching criteria.  Updated when 1st match is encountered
 integer *   1  key_refresh_start     | First key to refresh
 integer *   1  key_count             | how many keys are there
-integer *   2  rt#                   | record type number
+integer *   2  REC_#                   | record type number
 string  *  32  rt$                   | record type name
 string  * 150  txt                   | general output for debuggin
 integer *   2  db_row                | database row
@@ -46,9 +46,9 @@ set row_pointer * (1)  | starting position for list
 start_key = 1          | because SIR does complex things to CASE and CASESLESS DB we pass in a start value and change as needed.
 key_refresh_start = start_key + dbtype(0) | note CASEID is first key
 rt$ = 'AER'
-rt# = recnum(rt$)
+REC_# = recnum(rt$)
 db_row = 0 
-key_count = nkeys(rt#) + dbtype(0)
+key_count = nkeys(REC_#) + dbtype(0)
 write ' --------------    new run    --------------'
 write 'key count: ' key_count 
 write 'key refresh starts at: ' key_refresh_start ' which is actually key: ' start_key
@@ -64,8 +64,8 @@ c test parameters
 c   simulate clicking on the first key, first value
 .   CASE_ID$ = varget( keyname( 0, 1 ) ) 
 .   CASE_ID# = numbr( CASE_ID$ )
-.   match_value(1 + dbtype(0)) = varget( keyname( rt#, 1 + dbtype(0) ) )
-.   write 'match this case: ' [varget( keyname( rt#, dbtype(0) ) )]
+.   match_value(1 + dbtype(0)) = varget( keyname( REC_#, 1 + dbtype(0) ) )
+.   write 'match this case: ' [varget( keyname( REC_#, dbtype(0) ) )]
 .   write 'match this 1st key value: ' [match_value( 1 + dbtype(0) ) ]
 .   testing = 1
 .   EXIT REC
@@ -77,7 +77,7 @@ c
 END CASES
 c get all of the 
 
-execute subprocedure ["get_rec_" + format(rt#)]
+execute subprocedure ["get_rec_" + format(REC_#)]
 write 'total rows in db record type: ' db_row
 
 execute subprocedure VIEW_ALL_KEYS
@@ -96,7 +96,7 @@ subprocedure MAKE_ROW_OF_ALL_KEYS
 C WRITE '-----------   Make ROW ADB Array     -----------'
 . db_row = db_row + 1
 . for each_key = 1 + dbtype(0), key_count
-.   db_rec_keys (db_row, each_key) = varget( keyname( rt#, each_key ) )
+.   db_rec_keys (db_row, each_key) = varget( keyname( REC_#, each_key ) )
 . end for
 end subprocedure
 
@@ -140,13 +140,13 @@ WRITE 'These keys: ' [key_refresh_start ] ' - ' key_count
 . for each_key = key_refresh_start , key_count 
 write 'key ' each_key '.  # of values to update: ' [row_pointer(each_key) - 1 ]
 .   for each_row = 1, row_pointer(each_key) - 1
-.       key_name = keyname( rt#, each_key ) 
+.       key_name = keyname( REC_#, each_key ) 
 .       key_value = rec_key_list( each_row, each_key )
-.       key_vtype = vtype( rt#, key_name )
+.       key_vtype = vtype( REC_#, key_name )
 .       ifthen ( key_vtype eq 1 or 3 or 4) 
-.         key_value_label = trim( fst( vallabsc ( rt#, key_name, key_value), "" ) )
+.         key_value_label = trim( fst( vallabsc ( REC_#, key_name, key_value), "" ) )
 .       else
-.         key_value_label = trim( fst( vallabsc ( rt#, key_name, numbr( key_value ) ) , "" ) )
+.         key_value_label = trim( fst( vallabsc ( REC_#, key_name, numbr( key_value ) ) , "" ) )
 .       endif
 .       DISPLAY_TEXT = key_value + key_value_label
 write DISPLAY_TEXT
