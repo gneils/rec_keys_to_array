@@ -20,6 +20,13 @@
 |            6. 05/01/2009 Added exit out code
 call DCCPROCF.SYSTEM.ALLRECS
 GLOBAL RTB = $; execute subprocedure WRITE_TO_BUFFER$
+PROGRAM
+IFTHEN ( VTYPE(0,KEYNAME(0,1)) EQ 1)
+. T = GLOBALN('CASE_TYPE' , 1) | STRING
+ELSE
+. T = GLOBALN('CASE_TYPE' , 0) | NUMERIC
+ENDIF
+END PROGRAM
 retrieval update noautocase crwarn dynamic
 |}
 
@@ -27,9 +34,9 @@ integer*2 m_id, m_arg1, m_arg2
 
 integer*1 IDSTATIC; preset IDSTATIC (-1)
 integer*1 IDCLOSE ; preset IDCLOSE  ( 0)
-integer*1 FIND_SUB                         ; preset FIND_SUB                          (1 )
-integer*1 FIND_SUBL                        ; preset FIND_SUBL                         (2 )
-integer*1 FIND_SUBB                        ; preset FIND_SUBB                         (3 )
+integer*1 FIND_SUB                        ; preset FIND_SUB                         (1 )
+integer*1 FIND_SUBL                       ; preset FIND_SUBL                        (2 )
+integer*1 FIND_SUBB                       ; preset FIND_SUBB                        (3 )
 integer*1 SUBJECTL                        ; preset SUBJECTL                         (4 )
 integer*1 SUBJECTS                        ; preset SUBJECTS                         (5 )
 integer*1 FORML                           ; preset FORML                            (6 )
@@ -55,7 +62,7 @@ integer*1 ID_00001                        ; preset ID_00001                     
 integer*1 ID_00003                        ; preset ID_00003                         (26 )
 integer*1 PTITLE                          ; preset PTITLE                           (27 )
 integer*1 FORMCNT                         ; preset FORMCNT                          (28 )
-integer*1 TIME_OUT_LABEL                     ; preset TIME_OUT_LABEL                      (29 )
+integer*1 TIME_OUT_LABEL                  ; preset TIME_OUT_LABEL                   (29 )
 integer*1 HIPAA1                          ; preset HIPAA1                           (30 )
 integer*1 HIPAA3                          ; preset HIPAA3                           (31 )
 integer*1 ID_00004                        ; preset ID_00004                         (32 )
@@ -67,9 +74,9 @@ dialog "Main Navigation"
 
 |{ Controls
 postype 1
-edit     FIND_SUB                         ,  20,       10, 110, 0, 0
-label    FIND_SUBL                        ,  35,       10, 110, "Find Subject"
-button   FIND_SUBB                        , 268,      288,  70, 1, ""
+edit     FIND_SUB                        ,  20,       10, 110, 0, 0
+label    FIND_SUBL                       ,  35,       10, 110, "Find Subject"
+button   FIND_SUBB                       , 268,      288,  70, 1, ""
 label    SUBJECTL                        ,  52,       10, 110, ""
 list     SUBJECTS                        ,  62, 184,  10, 110, 0
 label    FORML                           ,  52,      130,  28, "Forms"
@@ -96,7 +103,7 @@ line     ID_00001                        ,  20,  23, 130, 230
 label    ID_00003                        , 360,      427,  40, "Version 5A"
 label    PTITLE                          ,   6,       10, 230, ""
 label    FORMCNT                         ,  52,      189,  64, "Changes"
-label    TIME_OUT_LABEL                     ,   7,      258, 100, "Minutes until time out: 10"
+label    TIME_OUT_LABEL                  ,   7,      258, 100, "Minutes until time out: 10"
 label    HIPAA1                          , 336,       22, 326, "The information contained in this database is confidential. All database use is logged and monitored."
 label    HIPAA3                          , 346,       22, 327, "Unauthorized or improper use of this system, or the information it contains, is prohibited."
 line     ID_00004                        , 330,  32,  10, 353
@@ -133,7 +140,6 @@ initial
 . string  *   30 array COMMON1 (100)    | For displaying the first common variable in the SUBJECTS list
 . string  *   30 array COMMON2 (100)    | For displaying the second common variable in the SUBJECTS list
 . integer *    4   ARRAYSZ# CASE#
-
 . string  *   32   SHOW_$      | String while readin thru caselist file
 . integer *    1   EXIT__#     | Returning value from DVPainter
 . integer *    1   BOLD N_BOLD ITALIC N_ITALIC UNDERL N_UNDERL SMALL LARGE  |Fonts specifications
@@ -182,7 +188,7 @@ initial
 | List of Forms information
 . string  *   40   DOC$          | Something to do with the display length of a record type name
 . integer *    1   FOUNDID       | Search for CASEID found something or not
-. integer *    1   ANYNUM        | DELETE THIS VARIABLE OR RENAME IT.  used to test validation
+. integer *    2   ANYNUM        | DELETE THIS VARIABLE OR RENAME IT.  used to test validation
 . string  *   45   RECNM$        | Record name padded to the correct length
 | buffer
 . string  *   32   BUFF$N        | Buffer Name
@@ -202,15 +208,25 @@ initial
 . integer *    2   LOGOUTMINUTE  | Minutes until Time Out
 . integer *    1   SEENMESS      | Has the user seen the message
 . string  *  200   MESSPATH      | Message file path
-
-
-
+|
+|
+|
 | additional variables
+REAL    *   8  CASE_#V
+integer *   2  db_row                | database row
+integer *   1  key_count             | how many keys are there
+string  *  32  array db_rec_keys   ( 100, 8 ) |row, key1, key2, key3, key4, key5, key6
+string  *  32  array rec_key_list  ( 100, 8 ) |value, key1, key2, key3, key4, key5, key6
+integer *   2  array row_pointer   ( 8 )      | next row to add to array for each key
+string  *  32  array match_value   ( 8 )      | User matching criteria.  Updated when 1st match is encountered
+integer *   1  start_key             | which key was clicked
+integer *   1  key_refresh_start     | First key to refresh
 
-
-
-
-
+|
+|
+|
+|
+|
 . ENABLE TIMER 600
 . set LOGOUTMINUTE (0)
 . set HMFIC (1)
@@ -233,46 +249,34 @@ initial
 . set LARGE (3)
 . set NPFONT ('lucida console')
 . set P_FONT ('arial')
-. set item font FIND_SUB ,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
-. set item font SUBJECTS,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
-. set item font FORMS   ,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
-. set item font KEY1    ,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
-. set item font KEY2    ,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
-. set item font KEY3    ,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
-. set item font KEY4    ,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
-for dumbnum = 1, 5
-. set item font BIG_SUBJ,N_BOLD,N_ITALIC,N_UNDERL,1    ,NPFONT
-end for
-. set item font SUBJECTL,N_BOLD,N_ITALIC,UNDERL  ,LARGE,P_FONT
-. set item font FORML   ,N_BOLD,N_ITALIC,UNDERL  ,LARGE,P_FONT
-. set item font KEY1L   ,N_BOLD,N_ITALIC,UNDERL  ,LARGE,P_FONT
-. set item font KEY2L   ,N_BOLD,N_ITALIC,UNDERL  ,LARGE,P_FONT
-. set item font KEY3L   ,N_BOLD,N_ITALIC,UNDERL  ,LARGE,P_FONT
-. set item font KEY4L   ,N_BOLD,N_ITALIC,UNDERL  ,LARGE,P_FONT
-. set item font SUBJINFO,N_BOLD,N_ITALIC,UNDERL  ,LARGE,P_FONT
+. set item font FIND_SUB , N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
+. set item font SUBJECTS, N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
+. set item font FORMS   , N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
+. set item font KEY1    , N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
+. set item font KEY2    , N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
+. set item font KEY3    , N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
+. set item font KEY4    , N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
+. for ANYNUM = 1, 5
+.   set item font BIG_SUBJ,N_BOLD,N_ITALIC,N_UNDERL,1    ,NPFONT
+. end for
+. set item font SUBJECTL, N_BOLD, N_ITALIC,UNDERL, LARGE, P_FONT
+. set item font FORML   , N_BOLD, N_ITALIC,UNDERL, LARGE, P_FONT
+. set item font KEY1L   , N_BOLD, N_ITALIC,UNDERL, LARGE, P_FONT
+. set item font KEY2L   , N_BOLD, N_ITALIC,UNDERL, LARGE, P_FONT
+. set item font KEY3L   , N_BOLD, N_ITALIC,UNDERL, LARGE, P_FONT
+. set item font KEY4L   , N_BOLD, N_ITALIC,UNDERL, LARGE, P_FONT
+. set item font SUBJINFO, N_BOLD, N_ITALIC,UNDERL, LARGE, P_FONT
 . set item SUBJECTL, CASE_$N
 . ARRAYSZ# = numcases(0)
-ifthen (exists(ARRAYSZ#) eq NO or ARRAYSZ# eq 0)
-. display textbox "What is the first case" response CANCEL CASE_$V
-. ifthen (CANCEL > NO)
-.   BUFF$N = 'NEW_CASE_ID'
-.   execute subprocedure CREATE_BUFFER
-.   BUFF$ = 'retrieval UPDATE' <RTB>
-c .   execute subprocedure WRITE_TO_BUFFER
-.   BUFF$ = '. new case is '
-.   execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE <RTB>
-c .   execute subprocedure WRITE_TO_BUFFER
-.   BUFF$ = 'end case is' <RTB>
-c .   execute subprocedure WRITE_TO_BUFFER
-.   BUFF$ = 'end retrieval' <RTB>
-c .   execute subprocedure WRITE_TO_BUFFER
-.   execute dbms ['INCLUDE BUFFER ' + BUFF$N]
-.   ARRAYSZ# = numcases(0)
-. else
-.   write "Exiting dude"
-.   exit message
+. ifthen (exists(ARRAYSZ#) eq NO or ARRAYSZ# eq 0)
+.   display textbox "What is the first case" response CANCEL CASE_$V
+.   ifthen (CANCEL > NO)
+.     EXECUTE SUBPROCEDURE NEW_CASE_ID
+.   else
+.     write "Can not start with no case ids in database.  Exiting"
+.     exit message
+.   endif
 . endif
-endif
 | Load the dialog lists
 . ifthen (meminfo('NAVIGATE.LOADSUBJECTS:O',1) eq MEM_O)
 .   execute subroutine NAVIGATE.LOADSUBJECTS (SUBJECTS) DYNAMIC
@@ -314,14 +318,11 @@ ifthen (m_id eq FIND_SUBB )
 . PROCEED = YES
 . ifthen (getfocus(0) eq FIND_SUB)
 .   execute subprocedure GET_CASE_ID
-c .   CASE_$V = upper(trimlr(gettxt(FIND_SUB)))
-c display infobox ['Going to FIND_SUBJ with ' + CASE_$V]
 .   ifthen (meminfo('NAVIGATE.CXID:O',1) eq MEM_O)
 .     execute subroutine NAVIGATE.CXID (CASE_$V) returning (PROCEED) DYNAMIC
 .   endif
 .   ifthen (PROCEED eq YES)
 .     execute subprocedure FIND_SUBJECT | (CASE_$V)
-c display infobox [format(FOUNDID)]
 .     ifthen (FOUNDID eq YES)
 .       CLCK_# = 0
 .       execute subprocedure GET_USER_CLICK
@@ -352,6 +353,27 @@ ifthen (m_id eq FORMS )
 . CLCK_# = -1 |Forms
 . execute subprocedure GET_USER_CLICK
 . SCR$N = gettxt(FORMS)
+|
+|
+|
+|
+c new code here for testing debug
+
+execute subprocedure ["get_rec_" + format(REC_#)]
+write 'total rows in db record type: ' db_row
+KEY#C = nkeys(REC_#) + dbtype(0)
+write ' --------------    new run    --------------'
+write 'key count: ' KEY#C
+start_key = 1          | because SIR does complex things to CASE and CASESLESS DB we pass in a start value and change as needed.
+execute subprocedure SET_KEY_REFRESH_START
+write 'key refresh starts at: ' key_refresh_start ' which is actually key: ' start_key
+
+|
+|
+|
+|
+
+
 |>
 next message
 endif
@@ -686,29 +708,21 @@ subprocedure MAKE_KEYBUFF
 . BUFF$ = '. string * 32 TEMP_$ SHOW_$' <RTB>
 . BUFF$ = ". set SHOW_$ TEMP_$ (' ')" <RTB>
 . BUFF$ = '. old case is '; execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE <RTB>
-
 . BUFF$ = '.   set item ' + format(REC_CNTL)
           + ',format(count(' + format(REC_#) + '))'  <RTB>
-
 . BUFF$ = '.   set item ' + format(FORMCNT)
           + ',format(count(' + format(REC_#) + ')) '
           + ' + " " + pack(recname(' + format(REC_#) + ')) '  <RTB>
-
 . BUFF$ = '.   ifthen ((0 eq nkeys(' + format(REC_#) +')) '
           + 'and (count(' + format(REC_#) + ') eq 1)) hide item ' +format(ADDNEWF) <RTB>
 . BUFF$ = '.   else  show item ' + format(ADDNEWF)  <RTB>
-
 . BUFF$ = '.   endif'  <RTB>
-
 . BUFF$ = '.   set item ' +format(ADDNEWF)
           +',  "New " + pack(recname(' + format(REC_#) + ')) + " Form"'  <RTB>
-
 . BUFF$ = '.   set item ' + format(BIG_SUBJ)+ ','
 . execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE  <RTB>
-
 ifthen (nkeys(REC_#) gt 0)  |This is indented to stand out.  No Keys needs something special because D_ITEM_# will not work.
 . BUFF$ = '.   process rec ' + format(REC_#) + ' ' + VIA_$  <RTB>
-
 . ifthen (vtype(REC_#, keyname(REC_#, OURKEY#+1)) eq 3)
 .   BUFF$ =  '.   SHOW_$ = replace(varget(keyname(' + format(REC_#) + ', ' + format(OURKEY#+1) + '))," ","/",2,0,0)'
 . elseif (vtype(REC_#, keyname(REC_#, OURKEY#+1)) eq 4)
@@ -718,21 +732,14 @@ ifthen (nkeys(REC_#) gt 0)  |This is indented to stand out.  No Keys needs somet
 . endif
 . execute subprocedure WRITE_TO_BUFFER
 . BUFF$ =  '.     ifthen (trimlr(TEMP_$) ne trimlr(SHOW_$))'  <RTB>
-
 . BUFF$ =  '.       append item ' + format(D_ITEM_# ) + ', pack(SHOW_$)'
            + '+"  "+trim(fst(vallab(' + pack(keyname(REC_#,OURKEY#+1)) + '),""))'  <RTB>
-
 . BUFF$ = '.      endif'  <RTB>
-
 . BUFF$ = '.     TEMP_$ = SHOW_$'  <RTB>
-
 . BUFF$ = '.   end rec'  <RTB>
-
 endif
 . BUFF$ = '. end case'  <RTB>
-
 . BUFF$ = 'end retrieval'  <RTB>
-
 . execute dbms ['INCLUDE BUFFER ' + BUFF$N]
 c
 . if (gettxt(D_ITEM_#) eq '' or exists(gettxt(D_ITEM_#)) eq 0 and NKEYS(REC_#) > 0) append item D_ITEM_#, "No data"
@@ -795,18 +802,18 @@ subprocedure PICKKEY
 .     string  * 200  TXT$
 .     integer *   4  HOWMANY#
 .     PASSCHCK = 0 | it is funny.  I set this to 0 and then set it later to 1 It works.  It is designed that way.
-.     set item font NEWKEY1L,N_BOLD,N_ITALIC,UNDERL  ,LARGE,P_FONT
-.     set item font NEWKEY2L,N_BOLD,N_ITALIC,UNDERL  ,LARGE,P_FONT
-.     set item font NEWKEY3L,N_BOLD,N_ITALIC,UNDERL  ,LARGE,P_FONT
-.     set item font NEWKEY4L,N_BOLD,N_ITALIC,UNDERL  ,LARGE,P_FONT
+.     set item font NEWKEY1L, N_BOLD, N_ITALIC,UNDERL, LARGE, P_FONT
+.     set item font NEWKEY2L, N_BOLD, N_ITALIC,UNDERL, LARGE, P_FONT
+.     set item font NEWKEY3L, N_BOLD, N_ITALIC,UNDERL, LARGE, P_FONT
+.     set item font NEWKEY4L, N_BOLD, N_ITALIC,UNDERL, LARGE, P_FONT
 .     set item font NEWKEY1H,N_BOLD,N_ITALIC,N_UNDERL,0,NPFONT
-.     set item font NEWKEY2H,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
-.     set item font NEWKEY3H,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
-.     set item font NEWKEY4H,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
-.     set item font NEWKEY1E,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
-.     set item font NEWKEY2E,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
-.     set item font NEWKEY3E,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
-.     set item font NEWKEY4E,N_BOLD,N_ITALIC,N_UNDERL,SMALL,NPFONT
+.     set item font NEWKEY2H, N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
+.     set item font NEWKEY3H, N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
+.     set item font NEWKEY4H, N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
+.     set item font NEWKEY1E, N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
+.     set item font NEWKEY2E, N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
+.     set item font NEWKEY3E, N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
+.     set item font NEWKEY4E, N_BOLD, N_ITALIC, N_UNDERL, SMALL, NPFONT
 .     focus item NEWKEY1E
 .     ifthen (nkeys(REC_#) eq 1)
 .       hide item B_ADD2
@@ -1069,13 +1076,13 @@ c MOST IMPORTANT  All static information for record type.
 . endif
 |Right here, there could be a problem. If the form listed in FORMS had a different name than the record type
 |name, REC# will be missing.
-. KEY#C  = nkeys(REC_#) | Because the CASEID is always FIRST ONE.
+. KEY#C  = nkeys(REC_#) + dbtype(0)
 . KEY1_REF = 0   |Initial state is to NOT REFRESH
 . KEY2_REF = 0
 . KEY3_REF = 0
 . KEY4_REF = 0
 . set KEY#1T KEY#2T KEY#3T KEY#4T KEY#5T KEY#6T KEY#7T KEY#8T (nmissing)
-. for OURKEY# = 0 , KEY#C   | 1 is the CASEID
+. for OURKEY# = 0 , KEY#C - dbtype(0)   | 1 is the CASEID
 .   KEY$N   = keyname(REC_#, (OURKEY#+1))
 c not needed here .   LAB_CNT = nvallab(REC_#, KEY$N)
 .   ifthen ( OURKEY#  eq 0)
@@ -1162,7 +1169,7 @@ c.     POS0 = getpos(SUBJECTS)                     | ...remember the subject's p
 .       elseif (nkeys(REC_#) eq CLCK_# )
 .         execute subprocedure GOTO_SCREEN
 .         exit subprocedure
-.       elseif (KEY#C lt 1) | No keys
+.       elseif (KEY#C lt 1 + dbtype(0)) | No keys
 .         ifthen (numbr(gettxt(REC_CNTL)) eq 1)
 .           execute subprocedure GOTO_SCREEN
 .         else
@@ -1210,9 +1217,8 @@ end subprocedure GET_USER_CLICK
 subprocedure GET_KEYS
 <comment> write 'sub: GET_KEYS, VIA: ' VIA_$
 c used for passing key information to DATA ENTRY SCREENS
-
 . set KEY$1 KEY$2 KEY$3 KEY$4 (missing)
-. for OURKEY# = 0 , KEY#C   | 1 is the CASEID
+. for OURKEY# = 0 , KEY#C - dbtype(0)   | 1 is the CASEID
 .   KEY$N   = keyname(REC_#, (OURKEY#+1))
 .   VTYPE_#  = vtype(REC_#, KEY$N)
 .   if(OURKEY# eq 1) KEY$V= trim(gettxt(KEY1)); D_ITEM_# = KEY1
@@ -1328,7 +1334,7 @@ subprocedure FIND_SUBJECT | (CASE_$V)
 <comment> write 'sub: FIND_SUBJECT'
 . integer * 1 FIND#
 . FOUNDID = NO
-. ifthen (meminfo('NAVIGATE.FIND_SUBJ:O',1) eq MEM_O)
+. ifthen (meminfo('NAVIGATE.FIND_SUBJ:O',1) eq MEM_O) | custom find
 .   execute subroutine NAVIGATE.FIND_SUBJ returning (FIND#) DYNAMIC
 .   ifthen (FIND# eq 2)
 .     for x = 1, ARRAYSZ#
@@ -1346,20 +1352,20 @@ subprocedure FIND_SUBJECT | (CASE_$V)
 .     end for
 .   endif
 . else
-.   for x = 1, ARRAYSZ#
+.   for EACH_ID = 1, ARRAYSZ#
 c . write 'In FIND_SUBJ with ' [CASE_A(x)]FOUNDID CASE_$V
-.     ifthen (trim(CASE_A(x)) eq trimlr(upper(CASE_$V)))| If the passed in PTID equals the PTID in the list
+.     ifthen (trim(CASE_A( EACH_ID ) ) eq trimlr(upper(CASE_$V)))| If the passed in PTID equals the PTID in the list
 .      FOUNDID = YES
 .      exit for
 .    endif
 .   end for
 . endif
 . ifthen (FOUNDID eq YES)
-.   select item SUBJECTS, x
+.   select item SUBJECTS, EACH_ID
 .   set item BIG_SUBJ, CASE_A(getpos(SUBJECTS))
 .   ifthen (meminfo('NAVIGATE.SUBJINFO:O',1) eq MEM_O)
-.   x = getpos(SUBJECTS)
-.   CASE_$V = CASE_A(x)
+.   EACH_ID = getpos(SUBJECTS)
+.   CASE_$V = CASE_A(EACH_ID)
 .     execute subroutine NAVIGATE.SUBJINFO (SUBJINFO CASE_$V) DYNAMIC
 .   endif
 . end if
@@ -1404,12 +1410,12 @@ subprocedure MAKE_CASE_LIST
 . CASE# = 0
 . process cases
 .   CASE# = CASE# + 1
-.   CASE_A(CASE#) = varget(varname(0,1))     | Value of the case (the first common variable)
+.   CASE_A(CASE#) = varget(CASE_$N)     | Value of the case (the first common variable)
 .   ifthen (nvarsc(0) > 1)
-.     COMMON1(CASE#) = varget(varname(0,2))  | Value of the second common variable
+.     COMMON1(CASE#) = varget( varname( 0, 2 ) )  | Value of the second common variable
 .   endif
 .   ifthen (nvarsc(0) > 2)
-.     COMMON2(CASE#) = varget(varname(0,3))  | Value of the third common variable
+.     COMMON2(CASE#) = varget( varname( 0, 3 ) )  | Value of the third common variable
 .   endif
 . end cases
 end subprocedure MAKE_CASE_LIST
@@ -1420,17 +1426,8 @@ c IT PASSED THE TEST NOW CREATE IT create buffer to insert new case
 . ifthen (meminfo('NAVIGATE.NEWCASE:O',1) eq MEM_O)
 .   execute subroutine NAVIGATE.NEWCASE returning (CASE_$V) DYNAMIC
 . endif
-.   BUFF$N = 'NEWCASEID'
-.   execute subprocedure CREATE_BUFFER
-.   BUFF$ = 'retrieval UPDATE'  <RTB>
-.   BUFF$ = '. new case is ' ; execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE <RTB>
-.   BUFF$ = 'end case is'  <RTB>
-.   BUFF$ = 'end retrieval'  <RTB>
-.   BUFF$ = 'set item ' + format(BIG_SUBJ)+ ',';  execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE  <RTB>
-.   execute dbms ['INCLUDE BUFFER ' + BUFF$N]
-
+. EXECUTE SUBPROCEDURE NEW_CASE_ID
 | NEW CASE HAS BEEN CREATED.  NOW FIND IT AND FOCUS ON IT
-c.   execute subprocedure LOADSUBJECTS | It should be in the list now.
 . ifthen (meminfo('NAVIGATE.LOADSUBJECTS:O',1) eq MEM_O)
 .   execute subroutine NAVIGATE.LOADSUBJECTS (SUBJECTS) DYNAMIC
 . else
@@ -1441,15 +1438,16 @@ c.   execute subprocedure LOADSUBJECTS | It should be in the list now.
 .     CLCK_# = 0
 .     execute subprocedure GET_USER_CLICK
 .     focus item FORMS
-
 .    endif
 end subprocedure
 |
 subprocedure GET_CASE_ID
 . CASE_$V = trim( CASE_A( getpos( SUBJECTS ) ) )
+. CASE_#V = numbr( CASE_$V )
 c . CASE_$V = upper(trimlr(gettxt(FIND_SUB)))  | old way of doing this
 end subprocedure
-
+|
+|
 subprocedure ADD_CASE_ID_TO_BUFFER_LINE
 . ifthen (VTYPE(0,CASE_$N) eq 1 )  | string caseid
 .   ifthen ( sbst(CASE_$V,1,1) <> "'")  | is it in qoutes
@@ -1459,17 +1457,62 @@ subprocedure ADD_CASE_ID_TO_BUFFER_LINE
 .   endif
 . endif
 end subprocedure
-
+|
+|
 subprocedure CREATE_BUFFER
 . LINE# = 1
 . delete buffer BUFF$N
 . create buffer BUFF$N
 end subprocedure
-
+|
+|
 subprocedure WRITE_TO_BUFFER
 . insert line into buffer BUFF$N numbered LINE# from BUFF$
 . LINE# = LINE# + 1
 end subprocedure
+SUBPROCEDURE NEW_CASE_ID
+CIF EQ 1, 0<CASE_TYPE>
+. NEW CASE IS CASE_$V
+CIF FALSE
+. NEW CASE IS CASE_#V
+CIF END
+. END CASE IS
+. ARRAYSZ# = numcases(0)
+END SUBPROCEDURE
+
+do repeat RECX = <GREC1>
+                 <GREC2>
+                 <GREC3>
+                 <GREC4>
+. SUBPROCEDURE get_rec_!RECX
+CIF EQ 1, 0<CASE_TYPE>
+.   OLD CASE IS CASE_$V
+CIF FALSE
+.   OLD CASE IS CASE_#V
+CIF END
+.     db_row = 0
+.     PROCESS REC RECX
+.       execute subprocedure MAKE_ROW_OF_ALL_KEYS
+.     END REC
+.   END CASE IS
+. END SUBPROCEDURE
+end repeat
+|
+|
+subprocedure MAKE_ROW_OF_ALL_KEYS
+C WRITE '-----------   Make ROW ADB Array     -----------'
+. db_row = db_row + 1
+. for each_key = 1 + dbtype(0), key_count
+.   db_rec_keys (db_row, each_key) = varget( keyname( REC_#, each_key ) )
+. end for
+end subprocedure
+|
+|
+subprocedure SET_KEY_REFRESH_START
+. key_refresh_start = start_key + dbtype(0) | note CASEID is first key
+end subprocedure
+|
+|
 
 end retrieval
 |}

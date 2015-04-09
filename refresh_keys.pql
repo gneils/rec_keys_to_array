@@ -20,7 +20,7 @@ string  *  32  array rec_key_list  ( 100, 8 ) |value, key1, key2, key3, key4, ke
 integer *   2  array row_pointer  ( 8 )   | next row to add to array for each key
 string  *  32  array match_value   ( 8 )  | User matching criteria.  Updated when 1st match is encountered
 integer *   1  key_refresh_start     | First key to refresh
-integer *   1  key_count             | how many keys are there
+integer *   1  KEY#C                   | how many keys are there
 integer *   2  REC_#                   | record type number
 string  *  32  rt$                   | record type name
 string  * 150  txt                   | general output for debuggin
@@ -30,8 +30,8 @@ integer *   1  first_match           | First row that matched user defined crite
 string  *  32  current_value 
 integer *   1  testing
 integer *   1  start_key             | which key was clicked
-REAL    *   8  CASE_ID#
-string  *  32  CASE_ID$
+REAL    *   8  CASE_#V
+string  *  32  CASE_$V
 string  *  32  KEY_NAME
 integer *   1  KEY_VTYPE
 string  *  32  KEY_VALUE             | Key value
@@ -48,13 +48,13 @@ key_refresh_start = start_key + dbtype(0) | note CASEID is first key
 rt$ = 'AER'
 REC_# = recnum(rt$)
 db_row = 0 
-key_count = nkeys(REC_#) + dbtype(0)
+KEY#C = nkeys(REC_#) + dbtype(0)
 write ' --------------    new run    --------------'
-write 'key count: ' key_count 
+write 'SIR key count: ' KEY#C ' WHICH USES DBTYPE(0).  FOR CASE STRUCTURED DBS THIS ADDS 1'
 write 'key refresh starts at: ' key_refresh_start ' which is actually key: ' start_key
 PROCESS CASES | old case is 1001
 . autoset
-. ifthen ( key_count eq 0) 
+. ifthen ( KEY#C eq 0) 
 .   write 'no keys to check'
 .   exit cases
 . endif
@@ -62,8 +62,8 @@ PROCESS CASES | old case is 1001
 c test parameters
 . PROCESS REC AER |via (1)
 c   simulate clicking on the first key, first value
-.   CASE_ID$ = varget( keyname( 0, 1 ) ) 
-.   CASE_ID# = numbr( CASE_ID$ )
+.   CASE_$V = varget( keyname( 0, 1 ) ) 
+.   CASE_#V = numbr( CASE_$V )
 .   match_value(1 + dbtype(0)) = varget( keyname( REC_#, 1 + dbtype(0) ) )
 .   write 'match this case: ' [varget( keyname( REC_#, dbtype(0) ) )]
 .   write 'match this 1st key value: ' [match_value( 1 + dbtype(0) ) ]
@@ -82,7 +82,7 @@ write 'total rows in db record type: ' db_row
 
 execute subprocedure VIEW_ALL_KEYS
 
-ifthen (key_count ge 1)
+ifthen (KEY#C ge 1)
 . execute subprocedure CREATE_MATCHED_KEY_ARRAYS
 else
 . write 'no keys.  exited'
@@ -95,7 +95,7 @@ execute subprocedure refresh_keys
 subprocedure MAKE_ROW_OF_ALL_KEYS
 C WRITE '-----------   Make ROW ADB Array     -----------'
 . db_row = db_row + 1
-. for each_key = 1 + dbtype(0), key_count
+. for each_key = 1 + dbtype(0), KEY#C
 .   db_rec_keys (db_row, each_key) = varget( keyname( REC_#, each_key ) )
 . end for
 end subprocedure
@@ -106,9 +106,9 @@ WRITE '---------   ALL  VALUES in Array   --------'
 . txt = ""
 . for each_db_row = 1, db_row
 . txt = format (each_db_row ) + ': ' 
-.   for each_key = 1 + dbtype(0), key_count
+.   for each_key = 1 + dbtype(0), KEY#C
 .     txt = txt + db_rec_keys (each_db_row, each_key) 
-.     if(each_key lt key_count) txt = txt + " | "
+.     if(each_key lt KEY#C) txt = txt + " | "
 .   end for
 .   write txt
 . end for
@@ -121,7 +121,7 @@ WRITE '--------   Create Match Key Arrays --------'
 |   check each row to see if it matches the criteria.  If yes, grab all key values
 .   if ( first_match eq 0 ) execute subprocedure CHECK_ALL_MATCH_CRITERIA
 
-.   for each_key = 1 + dbtype(0), key_count
+.   for each_key = 1 + dbtype(0), KEY#C
 .     current_value = db_rec_keys (each_db_row, each_key)
 .     execute subprocedure previous_keys_match
 .     ifthen  ( previous_keys_match = 0 ) 
@@ -136,8 +136,8 @@ end subprocedure
 subprocedure refresh_keys
 | here cycle through keys, start with first that needs to be updated. append list
 WRITE // '-----------   show values to update -----------'
-WRITE 'These keys: ' [key_refresh_start ] ' - ' key_count
-. for each_key = key_refresh_start , key_count 
+WRITE 'These keys: ' [key_refresh_start ] ' - ' KEY#C
+. for each_key = key_refresh_start , KEY#C 
 write 'key ' each_key '.  # of values to update: ' [row_pointer(each_key) - 1 ]
 .   for each_row = 1, row_pointer(each_key) - 1
 .       key_name = keyname( REC_#, each_key ) 
@@ -209,7 +209,7 @@ c write 'key' match_key 'DB:'  db_rec_keys (each_db_row, match_key)  ' value: ' 
 . endif
 . ifthen (first_match eq 1) | set all of the match values.
 write 'settting match criteria: ' 
-.   for match_key = 1 + dbtype(0), key_count
+.   for match_key = 1 + dbtype(0), KEY#C
 write 'key ' match_key ' value ' db_rec_keys (each_db_row, match_key)
 .       match_value( match_key ) = db_rec_keys (each_db_row, match_key)
 .   end for
@@ -223,17 +223,19 @@ do repeat RECX = <GREC1>
                  <GREC4>
 . SUBPROCEDURE get_rec_!RECX
 CIF EQ 1, 0<CASE_TYPE>
-.   OLD CASE IS CASE_ID$
+.   OLD CASE IS CASE_$V
 CIF FALSE
-.   OLD CASE IS CASE_ID#
+.   OLD CASE IS CASE_#V
 CIF END
 .     PROCESS REC RECX
 .       execute subprocedure MAKE_ROW_OF_ALL_KEYS
 .     END REC
 .   END CASE IS
 . END SUBPROCEDURE
-
 end repeat
 
+subprocedure SET_KEY_REFRESH_START
+. key_refresh_start = start_key + dbtype(0) | note CASEID is first key
+end subprocedure
 
 end retrieval
