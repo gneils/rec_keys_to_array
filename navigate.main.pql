@@ -230,8 +230,6 @@ integer *   1  KEY_VTYPE
 string  *  32  KEY_VALUE             | Key value
 string  * 123  KEY_VALUE_LABEL       | Key value label
 string  * 123  DISPLAY_TEXT          | text to output to window
-
-
 |
 |
 |
@@ -326,9 +324,9 @@ LOGOUTMINUTE = 0
 ifthen (m_id eq FIND_SUBB )
 |< FIND_SUBB
 . PROCEED = YES
-. ifthen (getfocus(0) eq FIND_SUB)
+. ifthen ( getfocus(0) eq FIND_SUB)
 .   execute subprocedure GET_CASE_ID
-.   ifthen (meminfo('NAVIGATE.CXID:O',1) eq MEM_O)
+.   ifthen( meminfo('NAVIGATE.CXID:O',1) eq MEM_O)
 .     execute subroutine NAVIGATE.CXID (CASE_$V) returning (PROCEED) DYNAMIC
 .   endif
 .   ifthen (PROCEED eq YES)
@@ -384,7 +382,7 @@ else
 . write 'no keys.  no updates needed'
 . next message
 endif
-execute subprocedure refresh_keys
+execute subprocedure REFRESH_KEYS
 |
 |
 |
@@ -399,6 +397,36 @@ ifthen (m_id eq KEY1 )
 |< KEY1
 . CLCK_# = 1
 . execute subprocedure GET_USER_CLICK
+
+
+|
+|
+c new code here for testing debug
+
+write ' --------------    new run    --------------'
+execute subprocedure SET_MATCH_VALUES
+start_key = 2          | because SIR does complex things to CASE and CASESLESS DB we pass in a start value and change as needed.
+write 'SIR key count: ' KEY#C
+KEY#C = nkeys(REC_#) + dbtype(0)
+execute subprocedure SET_KEY_REFRESH_START
+execute subprocedure ["get_rec_" + format(REC_#)]
+write 'total rows in db record type: ' db_row
+write 'key refresh starts at: ' key_refresh_start ' which is actually key: ' start_key
+execute subprocedure VIEW_ALL_KEYS
+ifthen (KEY#C ge 1)
+. execute subprocedure CREATE_MATCHED_KEY_ARRAYS
+else
+. write 'no keys.  no updates needed'
+. next message
+endif
+execute subprocedure REFRESH_KEYS
+|
+|
+|
+|
+
+
+
 |>
 next message
 endif
@@ -1082,7 +1110,6 @@ c     it proved that something was bad!
 .   endif
 . end for
 end subprocedure
-
 |
 subprocedure GETRECINFO
 <comment> write 'sub: GETRECINFO'
@@ -1243,24 +1270,15 @@ c used for passing key information to DATA ENTRY SCREENS
 .   if(OURKEY# eq 2) KEY$V= trim(gettxt(KEY2)); D_ITEM_# = KEY2
 .   if(OURKEY# eq 3) KEY$V= trim(gettxt(KEY3)); D_ITEM_# = KEY3
 .   if(OURKEY# eq 4) KEY$V= trim(gettxt(KEY4)); D_ITEM_# = KEY4
-.   ifthen (VTYPE_# eq 1)  | String
-.   elseif (VTYPE_# eq 2)  | Categorical
-.   elseif (VTYPE_# eq 3)  | Date
-c .     DATE#V = cdate(KEY$V, datemap(REC_#, KEY$N))
-c .     KEY$V  = format(DATE#V)
-.   elseif (VTYPE_# eq 4)  | Time
-c .     TIME#V = ctime(KEY$V, timemap(REC_#, KEY$N))
-c .     KEY$V  = format(TIME#V)
-.   endif
-.   POS = abs(srst(KEY$V, ' '))-1  | A space indicates that value labels were added
+.   POS = abs(srst(KEY$V, ' ')) - 1  | A space indicates that value labels were added
 .   if (POS < 0) POS = len(KEY$V)
 .   KEY$V = sbst(KEY$V, 1, POS)
 c   1 categorical variable must have the number passed to the data entry screen, not the character!
 .   ifthen (VTYPE_# eq 2)  | Categorical
-.     for N=1,nvalid(REC_#,KEY$N)  |must cycle thru and get values instead of use "catint"
-.       if (svval(REC_#,KEY$N, N ) eq  KEY$V ) WRITE //// N; exit for
+.     for EACH_CAT = 1,nvalid(REC_#,KEY$N)  |must cycle thru and get values instead of use "catint"
+.       if (svval(REC_#,KEY$N, EACH_CAT ) eq  KEY$V ) WRITE //// EACH_CAT; exit for
 .     end for
-.     compute KEY$V = format(N)
+.     compute KEY$V = format(EACH_CAT)
 .   endif
 .   if(OURKEY# eq 1) KEY$1 = KEY$V
 .   if(OURKEY# eq 2) KEY$2 = KEY$V
@@ -1513,9 +1531,7 @@ CIF FALSE
 .   OLD CASE IS CASE_#V
 CIF END
 .     db_row = 0
-write 'made it in case: ' CASE_$V 'for rec type:  RECX'
 .     PROCESS REC RECX
-write 'made it in RECX'
 .       execute subprocedure MAKE_ROW_OF_ALL_KEYS
 .     END REC
 .   END CASE IS
@@ -1555,10 +1571,10 @@ subprocedure CREATE_MATCHED_KEY_ARRAYS
 WRITE '--------   Create Match Key Arrays --------'
 . first_match = 0 | no matching row yet
 . set rec_key_list_pointer * (1)  | starting position for each key list
+. set rec_key_list * (missing)
 . for each_db_row = 1, db_row
 |   check each row to see if it matches the criteria.  If yes, grab all key values
 .   if ( first_match eq 0 ) execute subprocedure CHECK_ALL_MATCH_CRITERIA
-
 .   for each_key = 1 + dbtype(0), KEY#C
 .     current_key_value = db_rec_keys (each_db_row, each_key)
 .     execute subprocedure PREVIOUS_KEYS_MATCH
@@ -1577,10 +1593,10 @@ write '------ Looking for First Match   ----------'
 . ifthen (key_refresh_start eq 1 + dbtype(0) ) | special rule for first keys- grab first row
 .   first_match = 1
 . else | if all keys upto match key match set flag
-c write 'checking for matched row'
+write 'checking for matches. Key1: ' match_value( 1 ) match_value( 2 ) match_value( 3 )
 .   for match_key = 1 + dbtype(0), key_refresh_start - 1
-c write 'key' match_key 'DB:'  db_rec_keys (each_db_row, match_key)  ' value: ' match_value( match_key )
-.     ifthen(  match_value( match_key ) = db_rec_keys (each_db_row, match_key) )
+write 'key' match_key 'DB:'  db_rec_keys (each_db_row, match_key)  ' value: ' match_value( match_key )
+.     ifthen(  match_value( match_key - dbtype(0) ) = db_rec_keys (each_db_row, match_key) )
 .       first_match = 1
 .     else
 .       first_match = 0
@@ -1610,7 +1626,7 @@ c write '-----------   previous_keys_match   ---------------'
 .   ifthen ( db_rec_keys (each_db_row, check_key ) eq match_value (check_key) )
 .     previous_keys_match = 1
 .   else
-write 5t 'failed match: ' db_rec_keys (each_db_row, check_key ) ' != ' match_value (check_key)
+write 5t 'failed match. DB: ' db_rec_keys (each_db_row, check_key ) ' != Match: ' match_value (check_key)
 .     previous_keys_match = 0
 .     exit subprocedure | can exit immediately when a single match fails
 .  endif
@@ -1632,9 +1648,13 @@ end subprocedure
 subprocedure refresh_keys
 | here cycle through keys, start with first that needs to be updated. append list
 WRITE // '-----------   show values to update -----------'
-WRITE 'These keys: ' key_refresh_start  ' - ' KEY#C
+ifthen (db_row eq 0 )
+. write "No data"
+. exit subprocedure
+endif
+c WRITE 'These keys: ' key_refresh_start  ' - ' KEY#C
 . for each_key = key_refresh_start , KEY#C
-write 'key ' each_key '.  # of values to update: ' [rec_key_list_pointer(each_key) - 1 ]
+write 'key ' each_key ' ( ' [rec_key_list_pointer(each_key) - 1 ] ' values to update: '
 .   for each_row = 1, rec_key_list_pointer(each_key) - 1
 .       key_name = keyname( REC_#, each_key )
 .       key_value = rec_key_list( each_row, each_key )
@@ -1645,14 +1665,34 @@ write 'key ' each_key '.  # of values to update: ' [rec_key_list_pointer(each_ke
 .         key_value_label = trim( fst( vallabsc ( REC_#, key_name, numbr( key_value ) ) , "" ) )
 .       endif
 .       DISPLAY_TEXT = key_value + " : " + key_value_label
-write DISPLAY_TEXT
+write 5t DISPLAY_TEXT
 c .       write 5t '  row: ' each_row
                  ' value: ' key_value
                  ' label: ' key_value_label
-
 .   end for
 . end for
 end subprocedure
+|
+|
+subprocedure SET_MATCH_VALUES
+. set match_value * (missing)
+. if (gettxt(KEY1) EQ 'No data' ) exit subprocedure | No data
+. if (exists(gettxt(KEY1)) EQ 0 ) exit subprocedure | No text appended to KEY1
+. execute subprocedure GET_KEYS
+. ifthen( getfocus(0) eq KEY1 )
+.  match_value (1) = KEY$1
+. elseif( getfocus(0) eq KEY2 )
+.   match_value (1) = KEY$1
+.   match_value (2) = KEY$2
+. elseif( getfocus(0) eq KEY3 )
+.   match_value (1) = KEY$1
+.   match_value (2) = KEY$2
+.   match_value (2) = KEY$3
+. endif
+write // 'match values: ' match_value (1) match_value (2) match_value (3)  //
 
+end subprocedure
+|
+|
 end retrieval
 |}
