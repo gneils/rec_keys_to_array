@@ -37,7 +37,7 @@ testing = 0  | When we have grabbed a case with the record type of interest.
 window clear
 first_match = 0
 set row_pointer * (1)  | starting position for list
-start_key = 1          | because SIR does complex things to CASE and CASESLESS DB we pass in a start value and change as needed.
+start_key = 2          | because SIR does complex things to CASE and CASESLESS DB we pass in a start value and change as needed.
 key_refresh_start = start_key + dbtype(0) | note CASEID is first key
 rt$ = 'CI_TP'
 rt# = recnum(rt$)
@@ -45,7 +45,7 @@ db_row = 0
 key_count = nkeys(rt#) + dbtype(0)
 write ' --------------    new run    --------------'
 write 'key count: ' key_count 
-write 'key refresh starts at: ' key_refresh_start
+write 'key refresh starts at: ' key_refresh_start ' which is actually key: ' start_key
 PROCESS CASES | old case is 1001
 . autoset
 . ifthen ( key_count eq 0) 
@@ -54,7 +54,7 @@ PROCESS CASES | old case is 1001
 . endif
 
 c test parameters
-. PROCESS REC CI_TP
+. PROCESS REC CI_TP via (1)
 c   simulate clicking on the first key, first value
 .   CASE_ID$ = varget( keyname( 0, 1 ) ) 
 .   CASE_ID# = numbr( CASE_ID$ )
@@ -66,14 +66,14 @@ c   simulate clicking on the first key, first value
 . END REC
 c
 . if (testing = 0) next CASE | didn't have a record.  Move to a case that does
-
-
-. execute subprocedure ["get_rec_" + format(rt#)]
-
 . if (testing = 1) EXIT CASES | got a test case
-. write 'total rows in db: ' db_row
 
 END CASES
+c get all of the 
+
+execute subprocedure ["get_rec_" + format(rt#)]
+write 'total rows in db record type: ' db_row
+
 execute subprocedure VIEW_ALL_KEYS
 
 ifthen (key_count ge 1)
@@ -86,8 +86,8 @@ endif
 execute subprocedure refresh_keys
 
 
-subprocedure MAKE_DB_KEY_ARRAY
-WRITE '-----------   Make DB Array     -----------'
+subprocedure MAKE_ROW_OF_ALL_KEYS
+C WRITE '-----------   Make ROW ADB Array     -----------'
 . db_row = db_row + 1
 . for each_key = 1 + dbtype(0), key_count
 .   db_rec_keys (db_row, each_key) = varget( keyname( rt#, each_key ) )
@@ -141,7 +141,7 @@ write 'key ' each_key '.  # of values to update: ' [row_pointer(each_key) - 1 ]
 end subprocedure 
 
 subprocedure previous_keys_match
-write '-----------   previous_keys_match   ---------------'
+c write '-----------   previous_keys_match   ---------------'
 . ifthen (each_key eq 1 + dbtype(0) ) | special rule for first keys
 .   previous_keys_match = 1
 .   exit subprocedure
@@ -152,6 +152,7 @@ write '-----------   previous_keys_match   ---------------'
 .   ifthen ( db_rec_keys (each_db_row, check_key ) eq match_value (check_key) )
 .     previous_keys_match = 1
 .   else
+write 5t 'failed match: ' db_rec_keys (each_db_row, check_key ) ' != ' match_value (check_key)
 .     previous_keys_match = 0 
 .     exit subprocedure | can exit immediately when a single match fails
 .  endif
@@ -174,12 +175,12 @@ end subprocedure
 subprocedure CHECK_ALL_MATCH_CRITERIA
 write '------ Looking for First Match   ----------'
 . if(first_match eq 1) exit subprocedure | values already set
-. ifthen (key_refresh_start eq 1 ) | special rule for first keys- grab first row
+. ifthen (key_refresh_start eq 1 + dbtype(0) ) | special rule for first keys- grab first row
 .   first_match = 1
 . else | if all keys upto match key match set flag
-write 'checking for matched row' 
+c write 'checking for matched row' 
 .   for match_key = 1 + dbtype(0), key_refresh_start - 1
-write 'key' match_key 'DB:'  db_rec_keys (each_db_row, match_key)  ' value: ' match_value( match_key ) 
+c write 'key' match_key 'DB:'  db_rec_keys (each_db_row, match_key)  ' value: ' match_value( match_key ) 
 .     ifthen(  match_value( match_key ) = db_rec_keys (each_db_row, match_key) )
 .       first_match = 1 
 .     else
@@ -209,7 +210,7 @@ CIF FALSE
 .   OLD CASE IS CASE_ID#
 CIF END
 .     PROCESS REC RECX
-.       execute subprocedure MAKE_DB_KEY_ARRAY
+.       execute subprocedure MAKE_ROW_OF_ALL_KEYS
 .     END REC
 .   END CASE IS
 . END SUBPROCEDURE
