@@ -54,7 +54,7 @@ c   simulate clicking on the first key, first value
 c
 . if (testing = 0) next CASE | didn't have a record.  Move to a case that does
 
-. process rec RECN
+. process rec Z1CHECK
 |   gets all keys and puts into array.  One record = one row in array.
 .   execute subprocedure MAKE_DB_KEY_ARRAY
 . end rec
@@ -62,9 +62,6 @@ c
 . write 'total rows in db: ' db_row
 
 END CASES
-
-execute subprocedure Z1CHECK
-
 execute subprocedure VIEW_ALL_KEYS
 
 ifthen (key_count ge 1)
