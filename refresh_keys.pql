@@ -6,6 +6,14 @@ c Create an array with all key values for a record type.  Parse the array and up
   5) If a key array needs updating it is based on all prior keys matching the criteria
   6) key array is cycled through making sure value is unique.
 
+PROGRAM
+IFTHEN ( VTYPE(0,KEYNAME(0,1)) EQ 1) 
+. T = GLOBALN('CASE_TYPE' , 1) | STRING
+ELSE
+. T = GLOBALN('CASE_TYPE' , 0) | NUMERIC
+ENDIF
+END PROGRAM
+
 retrieval crwarn
 string  *  32  array db_rec_keys   ( 100, 8 ) |row, key1, key2, key3, key4, key5, key6
 string  *  32  array rec_key_list  ( 100, 8 ) |value, key1, key2, key3, key4, key5, key6
@@ -14,6 +22,7 @@ string  *  32  array match_value   ( 8 )  | User matching criteria.  Updated whe
 integer *   1  key_refresh_start     | First key to refresh
 integer *   1  key_count             | how many keys are there
 integer *   2  rt#                   | record type number
+string  *  32  rt$                   | record type name
 string  * 150  txt                   | general output for debuggin
 integer *   2  db_row                | database row
 integer *   1  previous_keys_match   | if all previous keys match check current key value to see if it is unique
@@ -21,7 +30,8 @@ integer *   1  first_match           | First row that matched user defined crite
 string  *  32  current_value 
 integer *   1  testing
 integer *   1  start_key             | which key was clicked
-
+REAL    *   8  CASE_ID#
+string  *  32  CASE_ID$
 
 testing = 0  | When we have grabbed a case with the record type of interest.
 window clear
@@ -29,7 +39,8 @@ first_match = 0
 set row_pointer * (1)  | starting position for list
 start_key = 1          | because SIR does complex things to CASE and CASESLESS DB we pass in a start value and change as needed.
 key_refresh_start = start_key + dbtype(0) | note CASEID is first key
-rt# = recnum('Z1CHECK') | recnum('A4DETAIL')
+rt$ = 'CI_TP'
+rt# = recnum(rt$)
 db_row = 0 
 key_count = nkeys(rt#) + dbtype(0)
 write ' --------------    new run    --------------'
@@ -43,8 +54,10 @@ PROCESS CASES | old case is 1001
 . endif
 
 c test parameters
-. PROCESS REC Z1CHECK
+. PROCESS REC CI_TP
 c   simulate clicking on the first key, first value
+.   CASE_ID$ = varget( keyname( 0, 1 ) ) 
+.   CASE_ID# = numbr( CASE_ID$ )
 .   match_value(1 + dbtype(0)) = varget( keyname( rt#, 1 + dbtype(0) ) )
 .   write 'match this case: ' [varget( keyname( rt#, dbtype(0) ) )]
 .   write 'match this 1st key value: ' [match_value( 1 + dbtype(0) ) ]
@@ -54,10 +67,9 @@ c   simulate clicking on the first key, first value
 c
 . if (testing = 0) next CASE | didn't have a record.  Move to a case that does
 
-. process rec Z1CHECK
-|   gets all keys and puts into array.  One record = one row in array.
-.   execute subprocedure MAKE_DB_KEY_ARRAY
-. end rec
+
+. execute subprocedure ["get_rec_" + format(rt#)]
+
 . if (testing = 1) EXIT CASES | got a test case
 . write 'total rows in db: ' db_row
 
@@ -185,6 +197,24 @@ write 'key ' match_key ' value ' db_rec_keys (each_db_row, match_key)
 . endif
 end subprocedure
 
+
+do repeat RECX = <GREC1>
+                 <GREC2>
+                 <GREC3>
+                 <GREC4>
+. SUBPROCEDURE get_rec_!RECX
+CIF EQ 1, 0<CASE_TYPE>
+.   OLD CASE IS CASE_ID$
+CIF FALSE
+.   OLD CASE IS CASE_ID#
+CIF END
+.     PROCESS REC RECX
+.       execute subprocedure MAKE_DB_KEY_ARRAY
+.     END REC
+.   END CASE IS
+. END SUBPROCEDURE
+
+end repeat
 
 
 end retrieval
