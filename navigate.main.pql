@@ -19,6 +19,7 @@
 |            then you don't want to do any of the regular GOTO_SCREEN stuff.
 |            6. 05/01/2009 Added exit out code
 call DCCPROCF.SYSTEM.ALLRECS
+GLOBAL RTB = $; execute subprocedure WRITE_TO_BUFFER$
 retrieval update noautocase crwarn dynamic
 |}
 
@@ -254,17 +255,17 @@ end for
 ifthen (exists(ARRAYSZ#) eq NO or ARRAYSZ# eq 0)
 . display textbox "What is the first case" response CANCEL CASE_$V
 . ifthen (CANCEL > NO)
-.   BUFF$N = 'NEWCASEID'
+.   BUFF$N = 'NEW_CASE_ID'
 .   execute subprocedure CREATE_BUFFER
-.   BUFF$ = 'retrieval UPDATE'
-.   execute subprocedure WRITE_TO_BUFFER
+.   BUFF$ = 'retrieval UPDATE' <RTB>
+c .   execute subprocedure WRITE_TO_BUFFER
 .   BUFF$ = '. new case is '
-.   execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE
-.   execute subprocedure WRITE_TO_BUFFER
-.   BUFF$ = 'end case is'
-.   execute subprocedure WRITE_TO_BUFFER
-.   BUFF$ = 'end retrieval'
-.   execute subprocedure WRITE_TO_BUFFER
+.   execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE <RTB>
+c .   execute subprocedure WRITE_TO_BUFFER
+.   BUFF$ = 'end case is' <RTB>
+c .   execute subprocedure WRITE_TO_BUFFER
+.   BUFF$ = 'end retrieval' <RTB>
+c .   execute subprocedure WRITE_TO_BUFFER
 .   execute dbms ['INCLUDE BUFFER ' + BUFF$N]
 .   ARRAYSZ# = numcases(0)
 . else
@@ -404,7 +405,7 @@ c.   KEY$1 = format(nvval(REC_#,keyname(REC_#,2),1))
 c.   execute subprocedure GOTO_SCREEN
 . else
 .   execute subprocedure MAKE_TEMP_KEYS   | Make temp keys before you go, so if they cancel you can reposition to previous choice.
-.   execute subprocedure PICK_NEW_KEYS          | Note: temp Keys is called again here.  And it calls a data entry screen.
+.   execute subprocedure PICKKEY          | Note: temp Keys is called again here.  And it calls a data entry screen.
 
 .   CLCK_# = -1   |Forms                  | repaint the screen and find out how many forms there are now
 .   execute subprocedure GET_USER_CLICK        | Refresh display in either case to get correct record count
@@ -681,33 +682,33 @@ subprocedure MAKE_KEYBUFF
 . compute REC_#C = 0  |How many records exists for that case
 . BUFF$N = 'KEYBUFF'
 . execute subprocedure CREATE_BUFFER
-. BUFF$ = 'retrieval'
-. execute subprocedure WRITE_TO_BUFFER
-. BUFF$ = '. string * 32 TEMP_$ SHOW_$'
-. execute subprocedure WRITE_TO_BUFFER
-. BUFF$ = ". set SHOW_$ TEMP_$ (' ')"
-. execute subprocedure WRITE_TO_BUFFER
-. BUFF$ = '. old case is '
-. execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE
-. execute subprocedure WRITE_TO_BUFFER
-. BUFF$ = '.   set item ' +format(REC_CNTL)+',format(count(' + format(REC_#) + '))'
-. execute subprocedure WRITE_TO_BUFFER
-. BUFF$ = '.   set item ' +format(FORMCNT)+',format(count(' + format(REC_#) + ')) + " " + pack(recname(' + format(REC_#) + ')) '
-. execute subprocedure WRITE_TO_BUFFER
-. BUFF$ = '.   ifthen ((0 eq nkeys(' + format(REC_#) +')) and (count(' + format(REC_#) + ') eq 1)) hide item ' +format(ADDNEWF)
-. execute subprocedure WRITE_TO_BUFFER
-. BUFF$ = '.   else  show item ' +format(ADDNEWF)
-. execute subprocedure WRITE_TO_BUFFER
-. BUFF$ = '.   endif'
-. execute subprocedure WRITE_TO_BUFFER
-. BUFF$ = '.   set item ' +format(ADDNEWF)+',  "New " + pack(recname(' + format(REC_#) + ')) + " Form"'
-. execute subprocedure WRITE_TO_BUFFER
+. BUFF$ = 'retrieval'  <RTB>
+. BUFF$ = '. string * 32 TEMP_$ SHOW_$' <RTB>
+. BUFF$ = ". set SHOW_$ TEMP_$ (' ')" <RTB>
+. BUFF$ = '. old case is '; execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE <RTB>
+
+. BUFF$ = '.   set item ' + format(REC_CNTL)
+          + ',format(count(' + format(REC_#) + '))'  <RTB>
+
+. BUFF$ = '.   set item ' + format(FORMCNT)
+          + ',format(count(' + format(REC_#) + ')) '
+          + ' + " " + pack(recname(' + format(REC_#) + ')) '  <RTB>
+
+. BUFF$ = '.   ifthen ((0 eq nkeys(' + format(REC_#) +')) '
+          + 'and (count(' + format(REC_#) + ') eq 1)) hide item ' +format(ADDNEWF) <RTB>
+. BUFF$ = '.   else  show item ' + format(ADDNEWF)  <RTB>
+
+. BUFF$ = '.   endif'  <RTB>
+
+. BUFF$ = '.   set item ' +format(ADDNEWF)
+          +',  "New " + pack(recname(' + format(REC_#) + ')) + " Form"'  <RTB>
+
 . BUFF$ = '.   set item ' + format(BIG_SUBJ)+ ','
-. execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE
-. execute subprocedure WRITE_TO_BUFFER
+. execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE  <RTB>
+
 ifthen (nkeys(REC_#) gt 0)  |This is indented to stand out.  No Keys needs something special because D_ITEM_# will not work.
-. BUFF$ = '.   process rec ' + format(REC_#) + ' ' + VIA_$
-. execute subprocedure WRITE_TO_BUFFER
+. BUFF$ = '.   process rec ' + format(REC_#) + ' ' + VIA_$  <RTB>
+
 . ifthen (vtype(REC_#, keyname(REC_#, OURKEY#+1)) eq 3)
 .   BUFF$ =  '.   SHOW_$ = replace(varget(keyname(' + format(REC_#) + ', ' + format(OURKEY#+1) + '))," ","/",2,0,0)'
 . elseif (vtype(REC_#, keyname(REC_#, OURKEY#+1)) eq 4)
@@ -716,30 +717,30 @@ ifthen (nkeys(REC_#) gt 0)  |This is indented to stand out.  No Keys needs somet
 .   BUFF$ =  '.   SHOW_$ =  trimlr(varget(keyname(' + format(REC_#) + ', ' + format(OURKEY#+1) + ')))'
 . endif
 . execute subprocedure WRITE_TO_BUFFER
-. BUFF$ =  '.     ifthen (trimlr(TEMP_$) ne trimlr(SHOW_$))'
-. execute subprocedure WRITE_TO_BUFFER
+. BUFF$ =  '.     ifthen (trimlr(TEMP_$) ne trimlr(SHOW_$))'  <RTB>
+
 . BUFF$ =  '.       append item ' + format(D_ITEM_# ) + ', pack(SHOW_$)'
-. BUFF$ =  BUFF$+ '+"  "+trim(fst(vallab('+pack(keyname(REC_#,OURKEY#+1)) + '),""))'
-. execute subprocedure WRITE_TO_BUFFER
-. BUFF$ = '.      endif'
-. execute subprocedure WRITE_TO_BUFFER
-. BUFF$ = '.     TEMP_$ = SHOW_$'
-. execute subprocedure WRITE_TO_BUFFER
-. BUFF$ = '.   end rec'
-. execute subprocedure WRITE_TO_BUFFER
+           + '+"  "+trim(fst(vallab(' + pack(keyname(REC_#,OURKEY#+1)) + '),""))'  <RTB>
+
+. BUFF$ = '.      endif'  <RTB>
+
+. BUFF$ = '.     TEMP_$ = SHOW_$'  <RTB>
+
+. BUFF$ = '.   end rec'  <RTB>
+
 endif
-. BUFF$ = '. end case'
-. execute subprocedure WRITE_TO_BUFFER
-. BUFF$ = 'end retrieval'
-. execute subprocedure WRITE_TO_BUFFER
+. BUFF$ = '. end case'  <RTB>
+
+. BUFF$ = 'end retrieval'  <RTB>
+
 . execute dbms ['INCLUDE BUFFER ' + BUFF$N]
 c
 . if (gettxt(D_ITEM_#) eq '' or exists(gettxt(D_ITEM_#)) eq 0 and NKEYS(REC_#) > 0) append item D_ITEM_#, "No data"
 .
 end subprocedure
 |
-subprocedure PICK_NEW_KEYS
-<comment> write 'sub: PICK_NEW_KEYS'
+subprocedure PICKKEY
+<comment> write 'sub: PICKKEY'
 . integer*1 CLOSER   ; CLOSER   =0
 . integer*1 CANCEL_X ; CANCEL_X =1
 . integer*1 NEWKEY1  ; NEWKEY1  =2
@@ -1421,20 +1422,13 @@ c IT PASSED THE TEST NOW CREATE IT create buffer to insert new case
 . endif
 .   BUFF$N = 'NEWCASEID'
 .   execute subprocedure CREATE_BUFFER
-.   BUFF$ = 'retrieval UPDATE'
-.   execute subprocedure WRITE_TO_BUFFER
-.   BUFF$ = '. new case is '
-.   execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE
-.   execute subprocedure WRITE_TO_BUFFER
-.   BUFF$ = 'end case is'
-.   execute subprocedure WRITE_TO_BUFFER
-.   BUFF$ = 'end retrieval'
-.   execute subprocedure WRITE_TO_BUFFER
-.   BUFF$ = '.   set item ' + format(BIG_SUBJ)+ ','
-.   execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE
-.   execute subprocedure WRITE_TO_BUFFER
+.   BUFF$ = 'retrieval UPDATE'  <RTB>
+.   BUFF$ = '. new case is ' ; execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE <RTB>
+.   BUFF$ = 'end case is'  <RTB>
+.   BUFF$ = 'end retrieval'  <RTB>
+.   BUFF$ = 'set item ' + format(BIG_SUBJ)+ ',';  execute subprocedure ADD_CASE_ID_TO_BUFFER_LINE  <RTB>
 .   execute dbms ['INCLUDE BUFFER ' + BUFF$N]
-| End buffer
+
 | NEW CASE HAS BEEN CREATED.  NOW FIND IT AND FOCUS ON IT
 c.   execute subprocedure LOADSUBJECTS | It should be in the list now.
 . ifthen (meminfo('NAVIGATE.LOADSUBJECTS:O',1) eq MEM_O)
@@ -1447,7 +1441,7 @@ c.   execute subprocedure LOADSUBJECTS | It should be in the list now.
 .     CLCK_# = 0
 .     execute subprocedure GET_USER_CLICK
 .     focus item FORMS
-|.     next message
+
 .    endif
 end subprocedure
 |
@@ -1479,4 +1473,3 @@ end subprocedure
 
 end retrieval
 |}
-
