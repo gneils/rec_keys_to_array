@@ -32,14 +32,20 @@ integer *   1  testing
 integer *   1  start_key             | which key was clicked
 REAL    *   8  CASE_ID#
 string  *  32  CASE_ID$
+string  *  32  KEY_NAME
+integer *   1  KEY_VTYPE
+string  *  32  KEY_VALUE             | Key value
+string  * 123  KEY_VALUE_LABEL       | Key value label
+string  * 123  DISPLAY_TEXT          | text to output to window
+
 
 testing = 0  | When we have grabbed a case with the record type of interest.
 window clear
 first_match = 0
 set row_pointer * (1)  | starting position for list
-start_key = 2          | because SIR does complex things to CASE and CASESLESS DB we pass in a start value and change as needed.
+start_key = 1          | because SIR does complex things to CASE and CASESLESS DB we pass in a start value and change as needed.
 key_refresh_start = start_key + dbtype(0) | note CASEID is first key
-rt$ = 'CI_TP'
+rt$ = 'AER'
 rt# = recnum(rt$)
 db_row = 0 
 key_count = nkeys(rt#) + dbtype(0)
@@ -54,7 +60,7 @@ PROCESS CASES | old case is 1001
 . endif
 
 c test parameters
-. PROCESS REC CI_TP via (1)
+. PROCESS REC AER |via (1)
 c   simulate clicking on the first key, first value
 .   CASE_ID$ = varget( keyname( 0, 1 ) ) 
 .   CASE_ID# = numbr( CASE_ID$ )
@@ -134,8 +140,20 @@ WRITE 'These keys: ' [key_refresh_start ] ' - ' key_count
 . for each_key = key_refresh_start , key_count 
 write 'key ' each_key '.  # of values to update: ' [row_pointer(each_key) - 1 ]
 .   for each_row = 1, row_pointer(each_key) - 1
-.     write 5t '  row: ' each_row   
-            'value: ' rec_key_list (each_row, each_key )
+.       key_name = keyname( rt#, each_key ) 
+.       key_value = rec_key_list( each_row, each_key )
+.       key_vtype = vtype( rt#, key_name )
+.       ifthen ( key_vtype eq 1 or 3 or 4) 
+.         key_value_label = trim( fst( vallabsc ( rt#, key_name, key_value), "" ) )
+.       else
+.         key_value_label = trim( fst( vallabsc ( rt#, key_name, numbr( key_value ) ) , "" ) )
+.       endif
+.       DISPLAY_TEXT = key_value + key_value_label
+write DISPLAY_TEXT
+c .       write 5t '  row: ' each_row   
+                 ' value: ' key_value
+                 ' label: ' key_value_label
+
 .   end for
 . end for
 end subprocedure 
