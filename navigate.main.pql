@@ -208,7 +208,7 @@ initial
 . integer *    2   LOGOUTMINUTE  | Minutes until Time Out
 . integer *    1   SEENMESS      | Has the user seen the message
 . string  *  200   MESSPATH      | Message file path
-|
+. integer *    1   FIND#         |
 |
 |
 | additional variables
@@ -296,6 +296,8 @@ string  * 123  DISPLAY_TEXT          | text to output to window
 . execute subprocedure GET_USER_CLICK
 . CLCK_# = -1  |then they clicked on a form
 . execute subprocedure GET_USER_CLICK
+. execute subprocedure MASTER_REFRESH_KEYS
+
 . focus item FIND_SUB
 . hide item FIND_SUBB
 . hide item TIME_OUT_LABEL
@@ -324,24 +326,23 @@ LOGOUTMINUTE = 0
 ifthen (m_id eq FIND_SUBB )
 |< FIND_SUBB
 . PROCEED = YES
-. ifthen ( getfocus(0) eq FIND_SUB)
-.   execute subprocedure GET_CASE_ID
-.   ifthen( meminfo('NAVIGATE.CXID:O',1) eq MEM_O)
-.     execute subroutine NAVIGATE.CXID (CASE_$V) returning (PROCEED) DYNAMIC
-.   endif
-.   ifthen (PROCEED eq YES)
-.     execute subprocedure FIND_SUBJECT | (CASE_$V)
-.     ifthen (FOUNDID eq YES)
-.       CLCK_# = 0
-.       execute subprocedure GET_USER_CLICK
-.       focus item FORMS
-.     else
-.       display yncbox CASE_$V + " does not exist, do you want to create it? ", response RESVAR   | 3.
-.       if (RESVAR eq 1) execute subprocedure CREATE_NEW_CASE; set item FIND_SUB,''
-.     endif
+. CASE_$V = upper(trimlr(gettxt(FIND_SUB)))  | SPECIAL SETTING FOR SEARCH!!
+. ifthen( meminfo('NAVIGATE.CXID:O',1) eq MEM_O)
+.   execute subroutine NAVIGATE.CXID (CASE_$V) returning (PROCEED) DYNAMIC
+. endif
+. ifthen (PROCEED eq YES)
+.   execute subprocedure FIND_SUBJECT | (CASE_$V)
+.   ifthen (FOUNDID eq YES)
+.     CLCK_# = 0
+.     execute subprocedure GET_USER_CLICK
+.     focus item FORMS
+.     execute subprocedure MASTER_REFRESH_KEYS
 .   else
-.     display infobox 'This ID is not valid'
+.     display yncbox CASE_$V + " does not exist, do you want to create it? ", response RESVAR   | 3.
+.     if (RESVAR eq 1) execute subprocedure CREATE_NEW_CASE; set item FIND_SUB,''
 .   endif
+. else
+.   display infobox 'This ID is not valid'
 . endif
 |>
 next message
@@ -352,6 +353,11 @@ ifthen (m_id eq SUBJECTS )
 | The user selected a subject...
 . CLCK_# = 0
 . execute subprocedure GET_USER_CLICK
+| new
+. execute subprocedure ["get_rec_" + format(REC_#)]
+. execute subprocedure VIEW_ALL_KEYS
+. execute subprocedure MASTER_REFRESH_KEYS
+
 |>
 next message
 endif
@@ -361,30 +367,10 @@ ifthen (m_id eq FORMS )
 . CLCK_# = -1 |Forms
 . execute subprocedure GET_USER_CLICK
 . SCR$N = gettxt(FORMS)
-|
-|
-|
-|
-c new code here for testing debug
-
-write ' --------------    new run    --------------'
-start_key = 1          | because SIR does complex things to CASE and CASESLESS DB we pass in a start value and change as needed.
-write 'SIR key count: ' KEY#C
-KEY#C = nkeys(REC_#) + dbtype(0)
-execute subprocedure SET_KEY_REFRESH_START
+| new
 execute subprocedure ["get_rec_" + format(REC_#)]
-write 'total rows in db record type: ' db_row
-write 'key refresh starts at: ' key_refresh_start ' which is actually key: ' start_key
 execute subprocedure VIEW_ALL_KEYS
-ifthen (KEY#C ge 1)
-. execute subprocedure CREATE_MATCHED_KEY_ARRAYS
-else
-. write 'no keys.  no updates needed'
-. next message
-endif
-execute subprocedure REFRESH_KEYS
-|
-|
+execute subprocedure MASTER_REFRESH_KEYS
 |
 |
 
@@ -397,35 +383,7 @@ ifthen (m_id eq KEY1 )
 |< KEY1
 . CLCK_# = 1
 . execute subprocedure GET_USER_CLICK
-
-
-|
-|
-c new code here for testing debug
-
-write ' --------------    new run    --------------'
-execute subprocedure SET_MATCH_VALUES
-start_key = 2          | because SIR does complex things to CASE and CASESLESS DB we pass in a start value and change as needed.
-write 'SIR key count: ' KEY#C
-KEY#C = nkeys(REC_#) + dbtype(0)
-execute subprocedure SET_KEY_REFRESH_START
-execute subprocedure ["get_rec_" + format(REC_#)]
-write 'total rows in db record type: ' db_row
-write 'key refresh starts at: ' key_refresh_start ' which is actually key: ' start_key
-execute subprocedure VIEW_ALL_KEYS
-ifthen (KEY#C ge 1)
-. execute subprocedure CREATE_MATCHED_KEY_ARRAYS
-else
-. write 'no keys.  no updates needed'
-. next message
-endif
-execute subprocedure REFRESH_KEYS
-|
-|
-|
-|
-
-
+. execute subprocedure MASTER_REFRESH_KEYS
 
 |>
 next message
@@ -435,6 +393,7 @@ ifthen (m_id eq KEY2 )
 |< KEY2
 . CLCK_# = 2
 . execute subprocedure GET_USER_CLICK
+. execute subprocedure MASTER_REFRESH_KEYS
 |>
 next message
 endif
@@ -443,6 +402,7 @@ ifthen (m_id eq KEY3 )
 |< KEY3
 . CLCK_# = 3
 . execute subprocedure GET_USER_CLICK
+. execute subprocedure MASTER_REFRESH_KEYS
 |>
 next message
 endif
@@ -451,6 +411,7 @@ ifthen (m_id eq KEY4 )
 |< KEY4
 . CLCK_# = 4
 . execute subprocedure GET_USER_CLICK
+. execute subprocedure MASTER_REFRESH_KEYS
 |>
 next message
 endif
@@ -580,7 +541,6 @@ ifthen (m_id eq STATS_B )
 |< STATS_B
 c. ifthen (trimr(gettxt(STATS_B)) eq '&List Stats')
 .    execute subprocedure GET_CASE_ID
-c.   CASE_$V = CASE_A(getpos(SUBJECTS))
 c.   execute dbms "CALL DCCPROCF.BASE.MSTCLEAR"
 c.   execute subroutine DCCPROCF.UTIL.LISTONE (CASE_$V CASETYPE SUBJECTS)
 c.   execute subroutine DCCPROCF.UTIL.LIST_IT (CASE_$V) DYNAMIC
@@ -638,7 +598,6 @@ c .   pql exit dbms  | this line is redundant.
 subprocedure LOADFORMS
 <comment> write 'sub: LOADFORMS'
 . execute subprocedure GET_CASE_ID
-c . CASE_$V  = trimlr(gettxt(SUBJECTS))
 . ifthen (meminfo('NAVIGATE.LOADFORM:O',1) eq MEM_O)
 .   execute subroutine NAVIGATE.LOADFORM (CASE_$V) DYNAMIC
 .   SCR$N = gettxt(FORMS)
@@ -666,27 +625,24 @@ subprocedure LOAD_SUBJ_INFO
 <comment> write 'sub: LOAD_SUBJ_INFO'
 <comment> write '       -NAVIGATE.SUBJINFO'
 . ifthen (meminfo('NAVIGATE.SUBJINFO:O',1) eq MEM_O)
-.  execute subprocedure GET_CASE_ID
-c .  CASE_$V = trim(CASE_A(getpos(SUBJECTS)))
-.  execute subroutine NAVIGATE.SUBJINFO (SUBJINFO CASE_$V) DYNAMIC
+.   execute subroutine NAVIGATE.SUBJINFO (SUBJINFO CASE_$V) DYNAMIC
 . else
-.  hide item SUBJINFO
+.   hide item SUBJINFO
 . endif
 end subprocedure LOAD_SUBJ_INFO
 |
 subprocedure GOTO_SCREEN
-<comment> write 'sub: GOTO_SCREEN'
+<comment> write 'sub GOTO_SCREEN. ' CASE_$V, KEY$1, KEY$2, KEY$3, KEY$4, KEY$5, KEY$6
 . PROCEED = YES
 . ifthen (meminfo('NAVIGATE.GOTOSCREEN:O',1) eq MEM_O)
 .   execute subroutine NAVIGATE.GOTOSCREEN:O (CASE_$V KEY$1 KEY$2 KEY$3 KEY$4 SCR$N BUTTON1$) returning (PROCEED) DYNAMIC
 . endif
 . ifthen (exists(CASE_$V) eq 0 or len(trim(CASE_$V)) eq 0)
 .   execute subprocedure GET_CASE_ID
-c .   CASE_$V = trimlr(gettxt(SUBJECTS))
 . endif
 . ifthen (PROCEED eq YES)
 .   SCR$N   = trimlr(recname(REC_#))
-.   SCRMEM$N = 'SCREENS.'  + trimlr(recname(REC_#)) + ':O'| Construct the name of the FAMILY.MEMBER that you want to call...
+.   SCRMEM$N = 'SIR014.SCREENS.'  + trimlr(recname(REC_#)) + ':O'| Construct the name of the FAMILY.MEMBER that you want to call...
 .   ifthen (REC_# le 9)
 .     REC_$ = '00' + format(REC_#)
 .   elseif (REC_# le 99)
@@ -716,16 +672,16 @@ C MULTIPLE CALLS.  1 FOR EACH KEY.
 . endif
 end subprocedure LOAD_VALUE
 |
-subprocedure REMOVEALL
-<comment> write 'sub: REMOVEALL'
+subprocedure REMOVE_ALL_KEY_DATA
+<comment> write 'sub: REMOVE_ALL_KEY_DATA'
 . remove all   KEY1
 . remove all   KEY2
 . remove all   KEY3
 . remove all   KEY4
-end subprocedure REMOVEALL
+end subprocedure REMOVE_ALL_KEY_DATA
 |
-subprocedure HIDEALL
-<comment> write 'sub: HIDEALL'
+subprocedure HIDE_ALL_KEY_INFO
+<comment> write 'sub: HIDE_ALL_KEY_INFO'
 . remove all   KEY1
 . hide item    KEY1
 . set item     KEY1L,''
@@ -738,7 +694,7 @@ subprocedure HIDEALL
 . remove all   KEY4
 . hide item    KEY4
 . set item     KEY4L,''
-end subprocedure HIDEALL
+end subprocedure HIDE_ALL_KEY_INFO
 |
 subprocedure MAKE_KEYBUFF
 . ifthen (exists(CASE_$V) eq 0 or len(trim(CASE_$V)) eq 0)
@@ -1111,16 +1067,14 @@ c     it proved that something was bad!
 . end for
 end subprocedure
 |
-subprocedure GETRECINFO
-<comment> write 'sub: GETRECINFO'
-c MOST IMPORTANT  All static information for record type.
-. ifthen (abs(srst(gettxt(FORMS),' ')) gt 0)    | 3.
-.   REC_#  = recnum(trimlr(sbst(gettxt(FORMS),1,abs(srst(gettxt(FORMS),' ')))))
+subprocedure GET_ALL_REC_INFO
+<comment> write 'sub: GET_ALL_REC_INFO'
+. ifthen (abs(srst(gettxt(FORMS),' ')) gt 0)
+.   REC_#  = recnum(trimlr(sbst(gettxt(FORMS), 1, abs(srst(gettxt(FORMS),' ')))))
 . else
 .   REC_#  = recnum(trimlr(gettxt(FORMS)))
 . endif
-|Right here, there could be a problem. If the form listed in FORMS had a different name than the record type
-|name, REC# will be missing.
+| custom bug check: make sure form names are record type names or REC_# will be missing.
 . KEY#C  = nkeys(REC_#) + dbtype(0)
 . KEY1_REF = 0   |Initial state is to NOT REFRESH
 . KEY2_REF = 0
@@ -1160,12 +1114,12 @@ c not needed here .   LAB_CNT = nvallab(REC_#, KEY$N)
 .     display infobox "Contact Administrator and add 5th Key Window"
 .   endif
 . end for
-end subprocedure GETRECINFO
+end subprocedure GET_ALL_REC_INFO
 |
 subprocedure GET_USER_CLICK
 <comment> write 'sub: GET_USER_CLICK: '  CLCK_#
-<comment> write '       - HIDEALL'
-<comment> write '       - GETRECINFO'
+<comment> write '       - HIDE_ALL_KEY_INFO'
+<comment> write '       - GET_ALL_REC_INFO'
 <comment> write '       - REMOVAL'
 <comment> write '       - CALL NAVIGATE SUBJINFO'
 <comment> write '       - GOTO_SCREEN'
@@ -1174,85 +1128,83 @@ subprocedure GET_USER_CLICK
 <comment> write '       - LOAD_SUBJ_INFO'
 <comment> write '       - GET_KEYS'
 | We already know from the intial value of KEY(#)_REF WHERE OR NOT A KEY SHOULD BE REFRESHED.  Know we modify refreshers depending on where user clicked
-.   KEY1_CLK = 1  | Default is Refresh after every click
-.   KEY2_CLK = 1
-.   KEY3_CLK = 1
-.   KEY4_CLK = 1
-.   ifthen (CLCK_# eq -1) | Forms everything gets refreshed
-.     execute subprocedure HIDEALL  | Could be a change of KEY
-.     execute subprocedure GETRECINFO  |MOST IMPORTANT.  It gets all static information for record type.
-.   elseif (CLCK_# eq 0)  | Case Only Refreshing Items get refreshed
-.     execute subprocedure REMOVEALL  | just remove the previous key information
-.     execute subprocedure GET_CASE_ID
-.     set item BIG_SUBJ, CASE_$V
-c.     POS0 = getpos(SUBJECTS)                     | ...remember the subject's position in the list and...
-.     ifthen (meminfo('NAVIGATE.SUBJINFO:O',1) eq MEM_O)
-.       execute subroutine NAVIGATE.SUBJINFO (SUBJINFO CASE_$V) DYNAMIC
+. KEY1_CLK = 1  | Default is Refresh after every click
+. KEY2_CLK = 1
+. KEY3_CLK = 1
+. KEY4_CLK = 1
+. ifthen (CLCK_# eq -1) | Forms everything gets refreshed
+.   execute subprocedure HIDE_ALL_KEY_INFO  | Could be a change of KEY
+.   execute subprocedure GET_ALL_REC_INFO  |MOST IMPORTANT.  It gets all static information for record type.
+. elseif (CLCK_# eq 0)  | Case Only Refreshing Items get refreshed
+.   execute subprocedure REMOVE_ALL_KEY_DATA  | just remove the previous key information
+.   execute subprocedure GET_CASE_ID
+.   ifthen (meminfo('NAVIGATE.SUBJINFO:O',1) eq MEM_O)
+.     execute subroutine NAVIGATE.SUBJINFO (SUBJINFO CASE_$V) DYNAMIC
+.   endif
+. elseif (CLCK_# eq 1)  | Key 1
+.   KEY1_CLK = 0       | Don't refresh KEY1 because key1 was clicked
+. elseif (CLCK_# eq 2)  | Key 2
+.   KEY1_CLK = 0
+.   KEY2_CLK = 0
+. elseif (CLCK_# eq 3)  | Key 3
+.   KEY1_CLK = 0
+.   KEY2_CLK = 0
+.   KEY3_CLK = 0
+. elseif (CLCK_# eq 4)  | Key 4
+.   KEY1_CLK = 0
+.   KEY2_CLK = 0
+.   KEY3_CLK = 0
+.   KEY4_CLK = 0
+. else
+.   display infobox "contact admin with error code CLCK_#=?"
+. endif
+|
+. ifthen (M_ARG2 eq YES)  |double click go to form unless there is no form.
+.   ifthen (getfocus(0) eq FORMS or KEY1 or KEY2 or KEY3 or KEY4)  |Only if they click forms or keys on a double click)
+.     ifthen (gettxt(KEY1) eq 'No data')
+.       display infobox 'Please click on NEW FORM'
+.     elseif (nkeys(REC_#) eq CLCK_# )
+.       execute subprocedure GOTO_SCREEN
+.       exit subprocedure
+.     elseif (KEY#C lt 1 + dbtype(0)) | No keys
+.       ifthen (numbr(gettxt(REC_CNTL)) eq 1)
+.         execute subprocedure GOTO_SCREEN
+.       else
+.         display yncbox  "Create a new form for subject " + CASE_$V + "?", response RESVAR | 1.
+.         ifthen (RESVAR eq 1)
+.           execute subprocedure GOTO_SCREEN
+.         endif
+.       endif
+.     else
+.       display infobox "Double click on last key to go to a form or press NEW FORM"
 .     endif
-.   elseif (CLCK_# eq 1)  | Key 1
-.     KEY1_CLK = 0       | Don't refresh KEY1 because key1 was clicked
-.   elseif (CLCK_# eq 2)  | Key 2
-.     KEY1_CLK = 0
-.     KEY2_CLK = 0
-.   elseif (CLCK_# eq 3)  | Key 3
-.     KEY1_CLK = 0
-.     KEY2_CLK = 0
-.     KEY3_CLK = 0
-.   elseif (CLCK_# eq 4)  | Key 4
+.   endif
+. endif
+|
+. if (nkeys(REC_#)  eq 0) execute subprocedure LOAD_VALUE   |Why is this here.  Do you need this?
+. VIA_$    = ' '
+. ifthen (KEY1_REF eq 1 and KEY1_CLK eq 1)  |Refresh Key 1
+.   remove all KEY1
+.   OURKEY#  = 1
+.   D_ITEM_# = KEY1
+.   VIA_$    = ' '
+.   execute subprocedure LOAD_VALUE
+.   ifthen (gettxt(KEY1) eq 'No data')
 .     KEY1_CLK = 0
 .     KEY2_CLK = 0
 .     KEY3_CLK = 0
 .     KEY4_CLK = 0
-.   else
-.     display infobox "contact admin with error code CLCK_#=?"
 .   endif
-|
-.   ifthen (M_ARG2 eq YES)  |double click go to form unless there is no form.
-.     ifthen (getfocus(0) eq FORMS or KEY1 or KEY2 or KEY3 or KEY4)  |Only if they click forms or keys on a double click)
-.       ifthen (gettxt(KEY1) eq 'No data')
-.         display infobox 'Please click on NEW FORM'
-.       elseif (nkeys(REC_#) eq CLCK_# )
-.         execute subprocedure GOTO_SCREEN
-.         exit subprocedure
-.       elseif (KEY#C lt 1 + dbtype(0)) | No keys
-.         ifthen (numbr(gettxt(REC_CNTL)) eq 1)
-.           execute subprocedure GOTO_SCREEN
-.         else
-.           display yncbox  "Create a new form for subject " + CASE_$V + "?", response RESVAR | 1.
-.           ifthen (RESVAR eq 1)
-.             execute subprocedure GOTO_SCREEN
-.           endif
-.         endif
-.       else
-.         display infobox "Double click on last key to go to a form or press NEW FORM"
-.       endif
-.     endif
-.   endif
-|
-.   if (nkeys(REC_#)  eq 0) execute subprocedure LOAD_VALUE   |Why is this here.  Do you need this?
-.   VIA_$    = ' '
-.   ifthen (KEY1_REF eq 1 and KEY1_CLK eq 1)  |Refresh Key 1
-.     remove all KEY1
-.     OURKEY#  = 1
-.     D_ITEM_# = KEY1
-.     VIA_$    = ' '
-.     execute subprocedure LOAD_VALUE
-.     ifthen (gettxt(KEY1) eq 'No data')
-.       KEY1_CLK = 0
-.       KEY2_CLK = 0
-.       KEY3_CLK = 0
-.       KEY4_CLK = 0
-.     endif
-.   endif
-.   ifthen (KEY2_REF eq 1 and KEY2_CLK eq 1)  |Refresh Key 2
-.     execute subprocedure REFRESH_KEY2
-.   endif
-.   ifthen (KEY3_REF eq 1 and KEY3_CLK eq 1)  |Refresh Key 3
-.     execute subprocedure REFRESH_KEY3
-.   endif
-.   ifthen (KEY4_REF eq 1 and KEY4_CLK eq 1)  |Refresh Key 4
-.     execute subprocedure REFRESH_KEY4
-.   endif
+. endif
+. ifthen (KEY2_REF eq 1 and KEY2_CLK eq 1)  |Refresh Key 2
+.   execute subprocedure REFRESH_KEY2
+. endif
+. ifthen (KEY3_REF eq 1 and KEY3_CLK eq 1)  |Refresh Key 3
+.   execute subprocedure REFRESH_KEY3
+. endif
+. ifthen (KEY4_REF eq 1 and KEY4_CLK eq 1)  |Refresh Key 4
+.   execute subprocedure REFRESH_KEY4
+. endif
 . execute subprocedure LOAD_SUBJ_INFO  |Look for anthing that the DBA wanted made special
 . ifthen (gettxt(KEY1) ne 'No data')
 .   execute subprocedure GET_KEYS  | At the end of the day get the information that is display for the keys
@@ -1368,11 +1320,11 @@ end subprocedure REFRESH_KEY4
 |
 subprocedure FIND_SUBJECT | (CASE_$V)
 <comment> write 'sub: FIND_SUBJECT'
-. integer * 1 FIND#
+
 . FOUNDID = NO
 . ifthen (meminfo('NAVIGATE.FIND_SUBJ:O',1) eq MEM_O) | custom find
-.   execute subroutine NAVIGATE.FIND_SUBJ returning (FIND#) DYNAMIC
-.   ifthen (FIND# eq 2)
+.   execute subroutine NAVIGATE.FIND_SUBJ returning (FOUNDID) DYNAMIC
+.   ifthen (FOUNDID eq 2)
 .     for x = 1, ARRAYSZ#
 .       ifthen (COMMON1(x) eq trimlr(upper(CASE_$V)))| If the passed in PTID equals the PTID in the list
 .         FOUNDID = YES
@@ -1389,7 +1341,6 @@ subprocedure FIND_SUBJECT | (CASE_$V)
 .   endif
 . else
 .   for EACH_ID = 1, ARRAYSZ#
-c . write 'In FIND_SUBJ with ' [CASE_A(x)]FOUNDID CASE_$V
 .     ifthen (trim(CASE_A( EACH_ID ) ) eq trimlr(upper(CASE_$V)))| If the passed in PTID equals the PTID in the list
 .      FOUNDID = YES
 .      exit for
@@ -1398,10 +1349,8 @@ c . write 'In FIND_SUBJ with ' [CASE_A(x)]FOUNDID CASE_$V
 . endif
 . ifthen (FOUNDID eq YES)
 .   select item SUBJECTS, EACH_ID
-.   set item BIG_SUBJ, CASE_A(getpos(SUBJECTS))
+.   execute subprocedure GET_CASE_ID
 .   ifthen (meminfo('NAVIGATE.SUBJINFO:O',1) eq MEM_O)
-.   EACH_ID = getpos(SUBJECTS)
-.   CASE_$V = CASE_A(EACH_ID)
 .     execute subroutine NAVIGATE.SUBJINFO (SUBJINFO CASE_$V) DYNAMIC
 .   endif
 . end if
@@ -1480,17 +1429,20 @@ end subprocedure
 subprocedure GET_CASE_ID
 . CASE_$V = trim( CASE_A( getpos( SUBJECTS ) ) )
 . CASE_#V = numbr( CASE_$V )
-c . CASE_$V = upper(trimlr(gettxt(FIND_SUB)))  | old way of doing this
+. set item BIG_SUBJ, CASE_$V
 end subprocedure
 |
 |
 subprocedure ADD_CASE_ID_TO_BUFFER_LINE
+write 'ADD_CASE_ID_TO_BUFFER_LINE: ' CASE_$N '  vtype: ' [VTYPE(0,CASE_$N)]
 . ifthen (VTYPE(0,CASE_$N) eq 1 )  | string caseid
-.   ifthen ( sbst(CASE_$V,1,1) <> "'")  | is it in qoutes
+.   ifthen ( sbst( CASE_$V, 1, 1) <> "'")
 .     BUFF$ = BUFF$ + '"' + CASE_$V + '"' | add qoutes
 .   else
 .     BUFF$ = BUFF$ + CASE_$V
 .   endif
+. else
+.   BUFF$ = BUFF$ + CASE_$V
 . endif
 end subprocedure
 |
@@ -1548,11 +1500,6 @@ C WRITE '-----------   Make ROW ADB Array     -----------'
 end subprocedure
 |
 |
-subprocedure SET_KEY_REFRESH_START
-. key_refresh_start = start_key + dbtype(0) | note CASEID is first key
-end subprocedure
-|
-|
 subprocedure view_all_keys
 WRITE '---------   ALL  VALUES in Array   --------'
 . txt = ""
@@ -1569,6 +1516,7 @@ end subprocedure
 |
 subprocedure CREATE_MATCHED_KEY_ARRAYS
 WRITE '--------   Create Match Key Arrays --------'
+. if (KEY#C lt 1) exit subprocedure
 . first_match = 0 | no matching row yet
 . set rec_key_list_pointer * (1)  | starting position for each key list
 . set rec_key_list * (missing)
@@ -1626,7 +1574,7 @@ c write '-----------   previous_keys_match   ---------------'
 .   ifthen ( db_rec_keys (each_db_row, check_key ) eq match_value (check_key) )
 .     previous_keys_match = 1
 .   else
-write 5t 'failed match. DB: ' db_rec_keys (each_db_row, check_key ) ' != Match: ' match_value (check_key)
+c write 5t 'failed match. DB: ' db_rec_keys (each_db_row, check_key ) ' != Match: ' match_value (check_key)
 .     previous_keys_match = 0
 .     exit subprocedure | can exit immediately when a single match fails
 .  endif
@@ -1648,13 +1596,19 @@ end subprocedure
 subprocedure refresh_keys
 | here cycle through keys, start with first that needs to be updated. append list
 WRITE // '-----------   show values to update -----------'
+c WRITE 'These keys: ' key_refresh_start  ' - ' KEY#C
 ifthen (db_row eq 0 )
 . write "No data"
 . exit subprocedure
 endif
-c WRITE 'These keys: ' key_refresh_start  ' - ' KEY#C
 . for each_key = key_refresh_start , KEY#C
-write 'key ' each_key ' ( ' [rec_key_list_pointer(each_key) - 1 ] ' values to update: '
+c for debug
+.       if(each_key eq 1 + dbtype(0) ) append item KEY1, '-----------------'
+.       if(each_key eq 2 + dbtype(0) ) append item KEY2, '-----------------'
+.       if(each_key eq 3 + dbtype(0) ) append item KEY3, '-----------------'
+.       if(each_key eq 4 + dbtype(0) ) append item KEY4, '-----------------'
+
+c write 'key ' each_key ' ( ' [rec_key_list_pointer(each_key) - 1 ] ' values to update: '
 .   for each_row = 1, rec_key_list_pointer(each_key) - 1
 .       key_name = keyname( REC_#, each_key )
 .       key_value = rec_key_list( each_row, each_key )
@@ -1664,11 +1618,11 @@ write 'key ' each_key ' ( ' [rec_key_list_pointer(each_key) - 1 ] ' values to up
 .       else
 .         key_value_label = trim( fst( vallabsc ( REC_#, key_name, numbr( key_value ) ) , "" ) )
 .       endif
-.       DISPLAY_TEXT = key_value + " : " + key_value_label
-write 5t DISPLAY_TEXT
-c .       write 5t '  row: ' each_row
-                 ' value: ' key_value
-                 ' label: ' key_value_label
+.       DISPLAY_TEXT = key_value + "  " + key_value_label
+.       if(each_key eq 1 + dbtype(0) ) append item KEY1, DISPLAY_TEXT
+.       if(each_key eq 2 + dbtype(0) ) append item KEY2, DISPLAY_TEXT
+.       if(each_key eq 3 + dbtype(0) ) append item KEY3, DISPLAY_TEXT
+.       if(each_key eq 4 + dbtype(0) ) append item KEY4, DISPLAY_TEXT
 .   end for
 . end for
 end subprocedure
@@ -1676,23 +1630,34 @@ end subprocedure
 |
 subprocedure SET_MATCH_VALUES
 . set match_value * (missing)
+. start_key = 1
 . if (gettxt(KEY1) EQ 'No data' ) exit subprocedure | No data
 . if (exists(gettxt(KEY1)) EQ 0 ) exit subprocedure | No text appended to KEY1
 . execute subprocedure GET_KEYS
 . ifthen( getfocus(0) eq KEY1 )
 .  match_value (1) = KEY$1
+.  start_key = 2
 . elseif( getfocus(0) eq KEY2 )
 .   match_value (1) = KEY$1
 .   match_value (2) = KEY$2
+.   start_key = 3
 . elseif( getfocus(0) eq KEY3 )
 .   match_value (1) = KEY$1
 .   match_value (2) = KEY$2
 .   match_value (2) = KEY$3
+.   start_key = 4
 . endif
-write // 'match values: ' match_value (1) match_value (2) match_value (3)  //
-
+. key_refresh_start = start_key + dbtype(0) | note CASEID is first key
+. write 5t 'key refresh starts at: ' key_refresh_start ' which is actually key: ' start_key
+. write 5t 'match values: ' match_value (1) match_value (2) match_value (3)  //
 end subprocedure
 |
 |
+subprocedure MASTER_REFRESH_KEYS
+. execute subprocedure SET_MATCH_VALUES
+. execute subprocedure CREATE_MATCHED_KEY_ARRAYS
+. execute subprocedure REFRESH_KEYS
+end subprocedure
+
 end retrieval
 |}
